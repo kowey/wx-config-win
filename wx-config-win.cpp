@@ -5,7 +5,7 @@
 // Created:     2006-03-23
 // Copyright:   (c) Takeshi Miya
 // Licence:     wxWidgets licence
-// $Rev$
+// $Revision$
 // $URL$
 // $Date$
 // $Id$
@@ -26,6 +26,23 @@
 #ifndef WXCONFIG_EASY_MODE
 #define WXCONFIG_EASY_MODE 0
 #endif
+
+// -------------------------------------------------------------------------------------------------
+
+std::string getSvnRevision()
+{
+    std::string str = "$Rev$";
+    return str.substr(6, str.length()-8);
+    //return str.substr(1, str.length()-3);
+
+}
+
+std::string getSvnDate()
+{
+    std::string str = "$Date$";
+    return str.substr(7, 10);
+    //return str.substr(1, str.length()-3);
+}
 
 // -------------------------------------------------------------------------------------------------
 
@@ -128,7 +145,8 @@ public:
                      keyExists("--release") ||
                      keyExists("--cc") ||
                      keyExists("--cxx") ||
-                     keyExists("--ld");
+                     keyExists("--ld") ||
+                     keyExists("-v");
 
         if(!valid)
         {
@@ -156,6 +174,8 @@ public:
             std::cout << "  --cc                        Outputs the name of the C compiler.\n";
             std::cout << "  --cxx                       Outputs the name of the C++ compiler.\n";
             std::cout << "  --ld                        Outputs the linker command.\n";
+            std::cout << "  -v                          Outputs the version of wx-config.\n";
+
 
             std::cout << std::endl;
             std::cout << "  Note that using --prefix is not needed if you have defined the \n";
@@ -164,7 +184,7 @@ public:
             std::cout << "  Also note that using --wxcfg is not needed if you have defined the \n";
             std::cout << "  environmental variable WXCFG.\n";
             std::cout << std::endl;
-
+            
         }
 
         return valid;
@@ -1711,6 +1731,8 @@ void outputFlags(Options& po, CmdLineOptions& cl)
         std::cout << po["rcflags"] << std::endl;
     if (cl.keyExists("--release"))
         std::cout << po["release"] << std::endl;
+    if (cl.keyExists("-v"))
+        std::cout << "wx-config revision " << getSvnRevision() << " " << getSvnDate() << std::endl;
 
 #if 0 // not implemented
     if (cl.keyExists("--version"))

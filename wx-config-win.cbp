@@ -13,7 +13,7 @@
 				<Option object_output="obj" />
 				<Option type="1" />
 				<Option compiler="gcc" />
-				<Option parameters="--cflags" />
+				<Option parameters="--help" />
 				<Compiler>
 					<Add option="-O2" />
 					<Add option="-pedantic" />
