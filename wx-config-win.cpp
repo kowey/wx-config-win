@@ -32,13 +32,19 @@
 std::string getSvnRevision()
 {
     std::string str = "$Rev$";
-    return str.substr(6, str.length()-8);
+    if (str.length() > 8)    
+        return str.substr(6, str.length()-8);
+    else
+        return "X";
 }
 
 std::string getSvnDate()
 {
     std::string str = "$Date$";
-    return str.substr(7, 10);
+    if (str.length() > 16)    
+        return str.substr(7, 10);
+    else
+        return "2006-XX-XX";
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -96,7 +102,12 @@ public:
                 return true;
         }
         else
-            std::cout << "   *** Error: Unable to open file '" << filepath.c_str() << "'." << std::endl;
+        {
+            // WARN: this is a special case: VC compiled trough project files
+            // TODO: NEEDS TESTING: this branch will execute if it's not VC
+            if (filepath.find("vc_") == std::string::npos)
+                std::cout << "   *** Error: Unable to open file '" << filepath.c_str() << "'." << std::endl;
+        }
 
         return false;
     }
@@ -1693,8 +1704,13 @@ void validatePrefix(const std::string& prefix)
 
 // -------------------------------------------------------------------------------------------------
 
-void validateConfiguration(const std::string& wxcfgfile)
-{   
+void validateConfiguration(const std::string& wxcfg, const std::string& wxcfgfile)
+{
+    // WARN: this is a special case: VC compiled trough project files
+    // TODO: NEEDS TESTING
+    if (wxcfg.find("vc_") != std::string::npos)
+        return;
+    
     std::ifstream build_cfg(wxcfgfile.c_str());
     if (!build_cfg.is_open())
     {
@@ -1780,7 +1796,7 @@ int main(int argc, char* argv[])
     
     po["wxcfgfile"] = po["prefix"] + "\\lib\\" + po["wxcfg"] + "\\build.cfg";
 
-    validateConfiguration(po["wxcfgfile"]);
+    validateConfiguration(po["wxcfg"], po["wxcfgfile"]);
     
     detectCompiler(po, cl);
 
