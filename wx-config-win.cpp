@@ -5,7 +5,7 @@
 // Created:     2006-03-23
 // Copyright:   (c) Takeshi Miya
 // Licence:     wxWidgets licence
-// $Revision$
+// $Rev$
 // $URL$
 // $Date$
 // $Id$
