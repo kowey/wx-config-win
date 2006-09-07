@@ -33,15 +33,12 @@ std::string getSvnRevision()
 {
     std::string str = "$Rev$";
     return str.substr(6, str.length()-8);
-    //return str.substr(1, str.length()-3);
-
 }
 
 std::string getSvnDate()
 {
     std::string str = "$Date$";
     return str.substr(7, 10);
-    //return str.substr(1, str.length()-3);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -174,7 +171,7 @@ public:
             std::cout << "  --cc                        Outputs the name of the C compiler.\n";
             std::cout << "  --cxx                       Outputs the name of the C++ compiler.\n";
             std::cout << "  --ld                        Outputs the linker command.\n";
-            std::cout << "  -v                          Outputs the version of wx-config.\n";
+            std::cout << "  -v                          Outputs the revision of wx-config.\n";
 
 
             std::cout << std::endl;
