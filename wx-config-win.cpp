@@ -5,7 +5,7 @@
 // Created:     2006-03-23
 // Copyright:   (c) Takeshi Miya
 // Licence:     wxWidgets licence
-// $Revision: 47 $
+// $WCREV$
 // $Id: wx-config-win.cpp 47 2006-04-27 15:24:41Z flcl_2001 $
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
