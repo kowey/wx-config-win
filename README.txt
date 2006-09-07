@@ -5,7 +5,7 @@
 // Created:     2006-03-23
 // Copyright:   (c) Takeshi Miya
 // Licence:     wxWidgets licence
-// $Revision: 43 $
+// $Rev$
 //--------------------------------------------------------------------------------------------
 
 wx-config-win is a tiny implementation of wx-config for Windows compilers.
