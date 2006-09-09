@@ -133,7 +133,7 @@ public:
 
     bool validArgs()
     {
-        bool valid = /*keyExists("--compiler") ||*/
+        bool valid = keyExists("--compiler") ||
                      keyExists("--prefix") ||
                      keyExists("--wxcfg") ||
                      keyExists("--libs") ||
@@ -168,11 +168,11 @@ public:
             std::cout << "  --rcflags                   Outputs all resource compiler flags. [UNTESTED]\n";
             std::cout << "  --libs                      Outputs all linker flags required for a wxWidgets application.\n";
             std::cout << std::endl;
-            std::cout << "  --debug                     Uses a debug configuration if found.\n";
-            std::cout << "  --unicode                   Uses an unicode configuration if found.\n";
-            std::cout << "  --static                    Uses a static configuration if found.\n";
-            std::cout << "  --universal                 Uses an universal configuration if found.\n";
-//          std::cout << "  --compiler[=mingw,dmc,vc]   Selects the compiler. The default is mingw.\n";
+            std::cout << "  --debug[=yes|no]            Uses a debug configuration if found.\n";
+            std::cout << "  --unicode[=yes|no]          Uses an unicode configuration if found.\n";
+            std::cout << "  --static[=yes|no]           Uses a static configuration if found.\n";
+            std::cout << "  --universal[=yes|no]        Uses an universal configuration if found.\n";
+            std::cout << "  --compiler[=gcc,dmc,vc]     Selects the compiler.\n";
             std::cout << "  --release                   Outputs the wxWidgets release number.\n";
             std::cout << "  --cc                        Outputs the name of the C compiler.\n";
             std::cout << "  --cxx                       Outputs the name of the C++ compiler.\n";
@@ -1436,7 +1436,12 @@ void normalizePath(std::string& path)
 // -------------------------------------------------------------------------------------------------
 
 void autodetectConfiguration(Options& po)
-{      
+{
+    // TODO: instead of this prebuild list that doesn't even take in account
+    // checkAdditionalFlags() and that doesn't admits multiple wx configurations
+    // a "dir list" needs to be done
+    
+    
     std::vector<std::string> cfgs;
     /// Searchs for '<prefix>\lib\gcc_[dll|lib][CFG]\[msw|base][univ][u][d]\build.cfg' next
     // TODO: account for $(CFG), $(DIR_SUFFIX_CPU)
@@ -1559,6 +1564,8 @@ void autodetectConfiguration(Options& po)
 
     if (!po.keyExists("wxcfg"))
     {
+        // TODO: this never reaches thanks to the new autodetection algorithm
+
         std::cout << "   *** Error: No build.cfg file has been auto-detected." << std::endl;
         std::cout << std::endl;
         std::cout << "       Please use the --wxcfg flag (as in `wx-config --wxcfg=gcc_dll\\mswud`)" << std::endl;
@@ -1571,6 +1578,25 @@ void autodetectConfiguration(Options& po)
 
 // -------------------------------------------------------------------------------------------------
 
+void replaceCompilerIfFound(std::string& wxcfg, const std::string& compiler)
+{
+    std::vector<std::string> compilers;
+    compilers.push_back("gcc_");
+    compilers.push_back("dmc_");
+    compilers.push_back("vc_");
+    compilers.push_back("wat_");
+    compilers.push_back("bcc_");
+
+    for(std::vector<std::string>::const_iterator it = compilers.begin(); it != compilers.end(); ++it)
+    {
+        size_t loc = wxcfg.find(*it);
+        if (loc != std::string::npos)
+            wxcfg.replace(loc, (*it).length(), compiler + "_");
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+
 void checkAdditionalFlags(Options& po, CmdLineOptions& cl)
 {
     /// Modifies wxcfg as 'vc[cpu]_[dll|lib][CFG]\[msw|base][univ][u][d]' accordingly
@@ -1578,54 +1604,119 @@ void checkAdditionalFlags(Options& po, CmdLineOptions& cl)
 
     if (cl.keyExists("--universal"))
     {
-        // Pattern: Replace /(msw|base)/ to /(msw|base)univ/
-        
-        size_t univ = po["wxcfg"].find("univ");
-        if (univ == std::string::npos)
+        if (cl["--universal"] == "no")
         {
-            size_t msw = po["wxcfg"].find("msw");
-            if (msw != std::string::npos)
-                po["wxcfg"].replace(msw, std::string("mswuniv").length(), "mswuniv");
-                
-            size_t base = po["wxcfg"].find("base");
-            if (base != std::string::npos)
-                po["wxcfg"].replace(base, std::string("baseuniv").length(), "baseuniv");
+            // Pattern: Remove /univ/ in /(msw|base)univ/
+            
+            const std::string univStr("univ");
+            size_t univPos = po["wxcfg"].rfind(univStr);
+            if (univPos != std::string::npos)
+                po["wxcfg"].erase(univPos, univStr.length());
+        }
+        else if (cl["--universal"] == "yes" || cl["--universal"].empty())
+        {
+            // Pattern: Replace /(msw|base)/ to /(msw|base)univ/
+            
+            const std::string univStr("univ");
+            size_t univPos = po["wxcfg"].rfind(univStr);
+            if (univPos == std::string::npos)
+            {
+                const std::string mswStr("msw");
+                size_t mswPos = po["wxcfg"].rfind(mswStr);
+                if (mswPos != std::string::npos)
+                    po["wxcfg"].insert(mswPos + mswStr.length(), univStr);
+                else
+                {
+                    const std::string baseStr("base");
+                    size_t basePos = po["wxcfg"].rfind(baseStr);
+                    if (basePos != std::string::npos)
+                        po["wxcfg"].insert(basePos + baseStr.length(), univStr);
+                }
+            }
         }
     }
-        
+    
     if (cl.keyExists("--unicode"))
     {
-        // Pattern: Add /.*u/ if it's not already
-        // or /.*ud/ if --debug is specified
-        
-        // TODO: std::find will be better
-        std::string::iterator lastChar = --po["wxcfg"].end();
-        if (*lastChar != 'u' && *lastChar != 'd')
-            po["wxcfg"] += "u";
-        else if ((*lastChar - 1) != 'u' && *lastChar == 'd')
+        if (cl["--unicode"] == "no")
         {
-            *lastChar = 'u';
-            po["wxcfg"] += "d";
-        }        
-    }
-        
-    if (cl.keyExists("--debug"))
-    {
-        // Pattern: Add /.*d/ if it's not already
-        std::string::iterator lastChar = --po["wxcfg"].end();
-        if (*lastChar != 'd')
-            po["wxcfg"] += "d";
-    }
-
-    if (cl.keyExists("--static"))
-    {
-        // Pattern: Replace /.*_dll/ to /.*_lib/
-        
-        size_t loc = po["wxcfg"].find("_dll");
-        if (loc != std::string::npos)
-            po["wxcfg"].replace(loc, std::string("_lib").length(), "_lib");
+            // Pattern: Remove /.*u/ if it's present
+            // or /.*ud/ if --debug is specified
+                    
+            std::string::iterator lastChar = --po["wxcfg"].end();
+            if (*lastChar == 'u')
+                po["wxcfg"].erase(lastChar);
+            else if (*(lastChar - 1) == 'u' && *lastChar == 'd')
+                po["wxcfg"].erase(lastChar - 1);
+        }
+        else if (cl["--unicode"] == "yes" || cl["--unicode"].empty())
+        {
+            // Pattern: Add /.*u/ if it's not already
+            // or /.*ud/ if --debug is specified
+            
+            // TODO: string::find will be better
+            std::string::iterator lastChar = --po["wxcfg"].end();
+            if (*lastChar != 'u' && *lastChar != 'd')
+                po["wxcfg"] += "u";
+            else if (*(lastChar - 1) != 'u' && *lastChar == 'd')
+            {
+                *lastChar = 'u';
+                po["wxcfg"] += "d";
+            }
+        }
     }
     
+    if (cl.keyExists("--debug"))
+    {
+        if (cl["--debug"] == "no")
+        {
+            // Pattern: Remove /.*d/ if it's present
+            std::string::iterator lastChar = --po["wxcfg"].end();
+            if (*lastChar == 'd')
+                po["wxcfg"].erase(lastChar);
+        }
+        else if (cl["--debug"] == "yes" || cl["--debug"].empty())
+        {
+            // Pattern: Add /.*d/ if it's not already
+            std::string::iterator lastChar = --po["wxcfg"].end();
+            if (*lastChar != 'd')
+                po["wxcfg"] += "d";
+        }
+    }
+    
+    if (cl.keyExists("--static"))
+    {
+        if (cl["--static"] == "no")
+        {
+            // Pattern: Replace /.*_lib/ to /.*_dll/
+            
+            size_t loc = po["wxcfg"].find("_lib");
+            if (loc != std::string::npos)
+                po["wxcfg"].replace(loc, std::string("_dll").length(), "_dll");
+        }
+        else if (cl["--static"] == "yes" || cl["--static"].empty())
+        {
+            // Pattern: Replace /.*_dll/ to /.*_lib/
+            
+            size_t loc = po["wxcfg"].find("_dll");
+            if (loc != std::string::npos)
+                po["wxcfg"].replace(loc, std::string("_lib").length(), "_lib");
+        }
+    }
+    
+    if (cl.keyExists("--compiler"))
+    {
+        if (cl["--compiler"] == "gcc")
+            replaceCompilerIfFound(po["wxcfg"], "gcc");
+        else if (cl["--compiler"] == "dmc")
+            replaceCompilerIfFound(po["wxcfg"], "dmc");
+        else if (cl["--compiler"] == "vc")
+            replaceCompilerIfFound(po["wxcfg"], "vc");
+        else if (cl["--compiler"] == "wat")
+            replaceCompilerIfFound(po["wxcfg"], "wat");
+        else if (cl["--compiler"] == "bcc")
+            replaceCompilerIfFound(po["wxcfg"], "bcc");
+    }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -1669,6 +1760,8 @@ void detectCompiler(Options& po, const CmdLineOptions& cl)
     }
     else
     {
+        // TODO: this never reaches thanks to the new autodetection algorithm
+        
         std::cout << "   *** Error: No supported compiler has been detected in the configuration '" << po["wxcfg"] << "'." << std::endl;
         std::cout << std::endl;
         std::cout << "       The specified wxcfg must start with a 'gcc_', 'dmc_' or 'vc_'" << std::endl;
@@ -1699,19 +1792,23 @@ void validatePrefix(const std::string& prefix)
 
 // -------------------------------------------------------------------------------------------------
 
-void validateConfiguration(const std::string& wxcfgfile)
+bool validateConfiguration(const std::string& wxcfgfile, bool exitIfError = true)
 {   
     std::ifstream build_cfg(wxcfgfile.c_str());
-    if (!build_cfg.is_open())
+    
+    bool isOpen = build_cfg.is_open();
+    if (!isOpen && exitIfError)
     {
-        std::cout << "   *** Error: No valid configuration of wxWidgets has been specified." << std::endl;
+        std::cout << "   *** Error: No valid configuration of wxWidgets has been found at location:" << std::endl;
+        std::cout << "       " << wxcfgfile << std::endl;
         std::cout << std::endl;
         std::cout << "       Please use the --wxcfg flag (as in `wx-config --wxcfg=gcc_dll\\mswud`)" << std::endl;
         std::cout << "       or set the environment variable WXCFG (as in WXCFG=gcc_dll\\mswud)" << std::endl;
         std::cout << "       to specify which configuration exactly you want to use." << std::endl;
         
-        std::exit(1);
+        std::exit(1);        
     }
+    return isOpen;
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -1734,8 +1831,6 @@ void outputFlags(Options& po, CmdLineOptions& cl)
         std::cout << po["rcflags"] << std::endl;
     if (cl.keyExists("--release"))
         std::cout << po["release"] << std::endl;
-    if (cl.keyExists("-v"))
-        std::cout << "wx-config revision " << getSvnRevision() << " " << getSvnDate() << std::endl;
 
 #if 0 // not implemented
     if (cl.keyExists("--version"))
@@ -1761,6 +1856,12 @@ int main(int argc, char* argv[])
 
     if (!cl.validArgs())
         return 1;
+        
+    if (cl.keyExists("-v"))
+    {
+        std::cout << "wx-config revision " << getSvnRevision() << " " << getSvnDate() << std::endl;
+        return 0;
+    }
 
     if (cl.keyExists("--prefix"))
         po["prefix"] = cl["--prefix"];
@@ -1775,21 +1876,27 @@ int main(int argc, char* argv[])
 
     if (cl.keyExists("--wxcfg"))
         po["wxcfg"] = cl["--wxcfg"];
-    else if (std::getenv("WXCFG") && cl["--prefix"].empty())
+    else if (std::getenv("WXCFG") && cl["--prefix"].empty())    // TODO: check logic
         po["wxcfg"] = std::getenv("WXCFG");
     else
-        autodetectConfiguration(po);
+    {
+        // TODO: this behaviour could be better, directory listing is required
+        
+        // Try if something valid can be found trough deriving checkAdditionalFlags() first
+        po["wxcfg"] = "gcc_dll\\msw";
+        po["wxcfgfile"] = po["prefix"] + "\\lib\\" + po["wxcfg"] + "\\build.cfg";
+        checkAdditionalFlags(po, cl);
+        
+        if (!validateConfiguration(po["wxcfgfile"], false))
+            autodetectConfiguration(po);    // important function
+    }
 
     normalizePath(po["wxcfg"]);
-    
     checkAdditionalFlags(po, cl);
-    
     po["wxcfgfile"] = po["prefix"] + "\\lib\\" + po["wxcfg"] + "\\build.cfg";
-
     validateConfiguration(po["wxcfgfile"]);
     
     detectCompiler(po, cl);
-
     outputFlags(po, cl);
 
     return 0;
