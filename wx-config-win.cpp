@@ -318,7 +318,7 @@ class Compiler
 {
 public:
     Compiler(const std::string& name) : m_name(name) {}
-//    virtual ~Compiler();
+    // ~Compiler();
     
     std::string easyMode(const std::string& str)
     {
@@ -1428,7 +1428,7 @@ void normalizePath(std::string& path)
         path.erase(firstChar);
     
     // removes the last slash (if any) from the given path
-    std::string::iterator lastChar = --path.end();
+    std::string::iterator lastChar = path.end() - 1;
     if (*lastChar == '\\')
         path.erase(lastChar);
 }
@@ -1557,7 +1557,7 @@ void autodetectConfiguration(Options& po)
                 std::cout << "       or set the environment variable WXCFG (as in WXCFG=gcc_dll\\mswud)" << std::endl;
                 std::cout << "       to specify which configuration exactly you want to use." << std::endl;
                 
-                std::exit(1);
+                exit(1);
             }
         }
     }
@@ -1572,7 +1572,7 @@ void autodetectConfiguration(Options& po)
         std::cout << "       or set the environment variable WXCFG (as in WXCFG=gcc_dll\\mswud)" << std::endl;
         std::cout << "       to specify which configuration exactly you want to use." << std::endl;
         
-        std::exit(1);
+        exit(1);
     }    
 }
 
@@ -1643,7 +1643,7 @@ void checkAdditionalFlags(Options& po, CmdLineOptions& cl)
             // Pattern: Remove /.*u/ if it's present
             // or /.*ud/ if --debug is specified
                     
-            std::string::iterator lastChar = --po["wxcfg"].end();
+            std::string::iterator lastChar = po["wxcfg"].end() - 1;
             if (*lastChar == 'u')
                 po["wxcfg"].erase(lastChar);
             else if (*(lastChar - 1) == 'u' && *lastChar == 'd')
@@ -1655,7 +1655,7 @@ void checkAdditionalFlags(Options& po, CmdLineOptions& cl)
             // or /.*ud/ if --debug is specified
             
             // TODO: string::find will be better
-            std::string::iterator lastChar = --po["wxcfg"].end();
+            std::string::iterator lastChar = po["wxcfg"].end() - 1;
             if (*lastChar != 'u' && *lastChar != 'd')
                 po["wxcfg"] += "u";
             else if (*(lastChar - 1) != 'u' && *lastChar == 'd')
@@ -1671,14 +1671,14 @@ void checkAdditionalFlags(Options& po, CmdLineOptions& cl)
         if (cl["--debug"] == "no")
         {
             // Pattern: Remove /.*d/ if it's present
-            std::string::iterator lastChar = --po["wxcfg"].end();
+            std::string::iterator lastChar = po["wxcfg"].end() - 1;
             if (*lastChar == 'd')
                 po["wxcfg"].erase(lastChar);
         }
         else if (cl["--debug"] == "yes" || cl["--debug"].empty())
         {
             // Pattern: Add /.*d/ if it's not already
-            std::string::iterator lastChar = --po["wxcfg"].end();
+            std::string::iterator lastChar = po["wxcfg"].end() - 1;
             if (*lastChar != 'd')
                 po["wxcfg"] += "d";
         }
@@ -1767,7 +1767,7 @@ void detectCompiler(Options& po, const CmdLineOptions& cl)
         std::cout << "       The specified wxcfg must start with a 'gcc_', 'dmc_' or 'vc_'" << std::endl;
         std::cout << "       to be successfully detected." << std::endl;
 
-        std::exit(1);
+        exit(1);
     }
 }
 
@@ -1786,7 +1786,7 @@ void validatePrefix(const std::string& prefix)
         std::cout << "       or set the environment variable WXWIN (as in WXWIN=C:\\wxWidgets)" << std::endl;
         std::cout << "       to specify where is your installation of wxWidgets." << std::endl;
 
-        std::exit(1);
+        exit(1);
     }    
 }
 
@@ -1806,7 +1806,7 @@ bool validateConfiguration(const std::string& wxcfgfile, bool exitIfError = true
         std::cout << "       or set the environment variable WXCFG (as in WXCFG=gcc_dll\\mswud)" << std::endl;
         std::cout << "       to specify which configuration exactly you want to use." << std::endl;
         
-        std::exit(1);        
+        exit(1);        
     }
     return isOpen;
 }
@@ -1865,8 +1865,8 @@ int main(int argc, char* argv[])
 
     if (cl.keyExists("--prefix"))
         po["prefix"] = cl["--prefix"];
-    else if (std::getenv("WXWIN"))
-        po["prefix"] = std::getenv("WXWIN");
+    else if (getenv("WXWIN"))
+        po["prefix"] = getenv("WXWIN");
     else
         po["prefix"] = "C:\\wxWidgets";
 
@@ -1876,8 +1876,8 @@ int main(int argc, char* argv[])
 
     if (cl.keyExists("--wxcfg"))
         po["wxcfg"] = cl["--wxcfg"];
-    else if (std::getenv("WXCFG") && cl["--prefix"].empty())    // TODO: check logic
-        po["wxcfg"] = std::getenv("WXCFG");
+    else if (getenv("WXCFG") && cl["--prefix"].empty())    // TODO: check logic
+        po["wxcfg"] = getenv("WXCFG");
     else
     {
         // TODO: this behaviour could be better, directory listing is required
