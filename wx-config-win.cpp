@@ -20,12 +20,6 @@
 #include <algorithm>
 #include <vector>
 
-// -------------------------------------------------------------------------------------------------
-
-/// if 1, enables output of -mwindows, warnings, optimize and debug flags automatically.
-#ifndef WXCONFIG_EASY_MODE
-#define WXCONFIG_EASY_MODE 0
-#endif
 
 // -------------------------------------------------------------------------------------------------
 
@@ -134,6 +128,7 @@ public:
     bool validArgs()
     {
         bool valid = keyExists("--compiler") ||
+                     keyExists("--easymode") ||
                      keyExists("--prefix") ||
                      keyExists("--wxcfg") ||
                      keyExists("--libs") ||
@@ -150,6 +145,7 @@ public:
                      keyExists("--cxx") ||
                      keyExists("--ld") ||
                      keyExists("-v");
+
 
         if(!valid)
         {
@@ -172,6 +168,7 @@ public:
             std::cout << "  --unicode[=yes|no]          Uses an unicode configuration if found.\n";
             std::cout << "  --static[=yes|no]           Uses a static configuration if found.\n";
             std::cout << "  --universal[=yes|no]        Uses an universal configuration if found.\n";
+            std::cout << "  --easymode[=yes|no]         Outputs warnings, optimize and debug flags automatically.\n";
             std::cout << "  --compiler[=gcc,dmc,vc]     Selects the compiler.\n";
             std::cout << "  --release                   Outputs the wxWidgets release number.\n";
             std::cout << "  --cc                        Outputs the name of the C compiler.\n";
@@ -313,6 +310,19 @@ struct CompilerSwitches
     std::string PCHExtension; // precompiled headers extension
 };
 
+static bool g_sEasyMode = false;
+
+void checkEasyMode(CmdLineOptions& cl)
+{
+    if (cl.keyExists("--easymode"))
+    {
+        if (cl["--easymode"] == "no")
+            g_sEasyMode = false;
+        else if (cl["--easymode"] == "yes" || cl["--easymode"].empty())
+            g_sEasyMode = true;
+    }
+}
+
 /// Compiler abstract base class
 class Compiler
 {
@@ -322,11 +332,10 @@ public:
     
     std::string easyMode(const std::string& str)
     {
-        #if WXCONFIG_EASY_MODE == 1
+        if (g_sEasyMode)
             return str;
-        #else
+        else
             return std::string();
-        #endif
     }
         
     std::string addFlag(const std::string& flag)
@@ -810,41 +819,270 @@ public:
         m_switches.linkerNeedsLibExtension = true;
     }
     
+    
     void process(Options& po, const CmdLineOptions& cl)
     {
-        std::string cfg_first = po["prefix"] + "\\build\\msw\\config.dmc";
+        /// Searchs for '<prefix>\build\msw\config.*' first
+        std::string cfg_first = po["prefix"] + "\\build\\msw\\config." + getName();
 
-        /// DMars config.dmc options
+        /// config.* options
         BuildFileOptions cfg(cfg_first);
 
-        // WARNING: HEAVY hardcoded, and not much can be done about that.
-        // dmc (unlike dms smake) doesn't support conditional compilation.
+        /// build.cfg options
+        cfg.parse(po["wxcfgfile"]);
+
 
         // ### Variables: ###
-        po["WX_RELEASE_NODOT"] = "26";
+        po["WX_RELEASE_NODOT"] = cfg["WXVER_MAJOR"] + cfg["WXVER_MINOR"];
+        if (po["WX_RELEASE_NODOT"].empty())
+            po["WX_RELEASE_NODOT"] = "26";
 
-        po["LIBTYPE_SUFFIX"] = "lib";
+        // ### Conditionally set variables: ###
+        if (cfg["USE_GUI"] == "0")
+            po["PORTNAME"] = "base";
 
-        po["LIBDIRNAME"] = po["prefix"] + "\\lib\\dmc_" + po["LIBTYPE_SUFFIX"] + cfg["CFG"];
+        if (cfg["USE_GUI"] == "1")
+            po["PORTNAME"] = "msw";
 
-        po["SETUPHDIR"] = po["LIBDIRNAME"] + "\\mswd";
+        if (cfg["BUILD"] == "debug" && cfg["DEBUG_FLAG"] == "default")
+            po["WXDEBUGFLAG"] = "d";
 
-        po["cflags"]  = easyMode(addFlag("-g")) + easyMode(addFlag("-o+none")) + addDefine("_WIN32_WINNT=0x0400");
-        po["cflags"] += addDefine("__WXMSW__") + addDefine("__WXDEBUG__") + addIncludeDir(po["prefix"] + "\\include");
-        po["cflags"] += addIncludeDir(po["SETUPHDIR"]) + addFlag("-w-") + easyMode(addIncludeDir(".")) + addFlag("-WA");
-        po["cflags"] += addIncludeDir(po["prefix"] + "\\samples") + addDefine("NOPCH") + addFlag("-Ar") + addFlag("-Ae");
+        if (cfg["DEBUG_FLAG"] == "1")
+            po["WXDEBUGFLAG"] = "d";
+
+        if (cfg["UNICODE"] == "1")
+            po["WXUNICODEFLAG"] = "u";
+
+        if (cfg["WXUNIV"] == "1")
+            po["WXUNIVNAME"] = "univ";
+
+        if (cfg["SHARED"] == "1")
+            po["WXDLLFLAG"] = "dll";
+
+        if (cfg["SHARED"] == "0")
+            po["LIBTYPE_SUFFIX"] = "lib";
+
+        if (cfg["SHARED"] == "1")
+            po["LIBTYPE_SUFFIX"] = "dll";
+
+        if (cfg["MONOLITHIC"] == "0")
+            po["EXTRALIBS_FOR_BASE"] = "";
+
+        if (cfg["MONOLITHIC"] == "1")
+            po["EXTRALIBS_FOR_BASE"] = "";
+            
+//----------------------------------------------------
+
+        if (cfg["BUILD"] == "debug" && cfg["DEBUG_INFO"] == "default")
+            po["__DEBUGINFO_0"] = addFlag("-g");
+
+        if (cfg["BUILD"] == "release" && cfg["DEBUG_INFO"] == "default")
+            po["__DEBUGINFO_0"] = addFlag("");
+
+        if (cfg["DEBUG_INFO"] == "0")
+            po["__DEBUGINFO_0"] = addFlag("");
+
+        if (cfg["DEBUG_INFO"] == "1")
+            po["__DEBUGINFO_0"] = addFlag("-g");
+
+        if (cfg["BUILD"] == "debug" && cfg["DEBUG_INFO"] == "default")
+            po["__DEBUGINFO_1"] = addFlag("/DEBUG /CODEVIEW");
+
+        if (cfg["BUILD"] == "release" && cfg["DEBUG_INFO"] == "default")
+            po["__DEBUGINFO_1"] = addFlag("");
+
+        if (cfg["DEBUG_INFO"] == "0")
+            po["__DEBUGINFO_1"] = addFlag("");
+
+        if (cfg["DEBUG_INFO"] == "1")
+            po["__DEBUGINFO_1"] = addFlag("/DEBUG /CODEVIEW");
+/*
+        if (cfg["BUILD"] == "debug" && cfg["DEBUG_RUNTIME_LIBS"] == "default")
+            po["____DEBUGRUNTIME_2_p"] = addDefine("_DEBUG");
+
+        if (cfg["BUILD"] == "release" && cfg["DEBUG_RUNTIME_LIBS"] == "default")
+            po["____DEBUGRUNTIME_2_p"] = addDefine("");
+
+        if (cfg["DEBUG_RUNTIME_LIBS"] == "0")
+            po["____DEBUGRUNTIME_2_p"] = addDefine("");
+
+        if (cfg["DEBUG_RUNTIME_LIBS"] == "1")
+            po["____DEBUGRUNTIME_2_p"] = addDefine("_DEBUG");
+
+        if (cfg["BUILD"] == "debug" && cfg["DEBUG_RUNTIME_LIBS"] == "default")
+            po["____DEBUGRUNTIME_2_p_1"] = addResDefine("_DEBUG");
+
+        if (cfg["BUILD"] == "release" && cfg["DEBUG_RUNTIME_LIBS"] == "default")
+            po["____DEBUGRUNTIME_2_p_1"] = addResDefine("");
+
+        if (cfg["DEBUG_RUNTIME_LIBS"] == "0")
+            po["____DEBUGRUNTIME_2_p_1"] = addResDefine("");
+
+        if (cfg["DEBUG_RUNTIME_LIBS"] == "1")
+            po["____DEBUGRUNTIME_2_p_1"] = addResDefine("_DEBUG");
+
+        if (cfg["BUILD"] == "debug" && cfg["DEBUG_RUNTIME_LIBS"] == "default")
+            po["__DEBUGRUNTIME_3"] = "d";
+
+        if (cfg["BUILD"] == "release" && cfg["DEBUG_RUNTIME_LIBS"] == "default")
+            po["__DEBUGRUNTIME_3"] = "";
+
+        if (cfg["DEBUG_RUNTIME_LIBS"] == "0")
+            po["__DEBUGRUNTIME_3"] = "";
+
+        if (cfg["DEBUG_RUNTIME_LIBS"] == "1")
+            po["__DEBUGRUNTIME_3"] = "d";
+*/
+//----------------------------------------------------
+
+        if (cfg["BUILD"] == "debug")
+            po["__OPTIMIZEFLAG_4"] = addFlag("-o+none");//2
+
+        if (cfg["BUILD"] == "release")
+            po["__OPTIMIZEFLAG_4"] = addFlag("-o");//2
+/*
+        if (cfg["USE_THREADS"] == "0")
+            po["__THREADSFLAG_7"] = "L";
+
+        if (cfg["USE_THREADS"] == "1")
+            po["__THREADSFLAG_7"] = "T";
+*/
+        if (cfg["RUNTIME_LIBS"] == "dynamic")
+            po["__RUNTIME_LIBS_8"] = "-ND";//5 // TODO: addFlag?
+
+        if (cfg["RUNTIME_LIBS"] == "static")
+            po["__RUNTIME_LIBS_8"] = "";//5
+
+//----------------------------------------------------
+
+        if (cfg["USE_RTTI"] == "0")
+            po["__RTTIFLAG_9"] = addFlag("");//6
+
+        if (cfg["USE_RTTI"] == "1")
+            po["__RTTIFLAG_9"] = addFlag("-Ar");//6
+
+        if (cfg["USE_EXCEPTIONS"] == "0")
+            po["__EXCEPTIONSFLAG_10"] = addFlag("");//7
+
+        if (cfg["USE_EXCEPTIONS"] == "1")
+            po["__EXCEPTIONSFLAG_10"] = addFlag("-Ae");//7
+            
+//----------------------------------------------------
+/*
+        if (cfg["BUILD"] == "debug" && cfg["DEBUG_RUNTIME_LIBS"] == "0")
+            po["__NO_VC_CRTDBG_p"] = addDefine("__NO_VC_CRTDBG__");
+
+        if (cfg["BUILD"] == "release" && cfg["DEBUG_FLAG"] == "1")
+            po["__NO_VC_CRTDBG_p"] = addDefine("__NO_VC_CRTDBG__");
+
+        if (cfg["BUILD"] == "debug" && cfg["DEBUG_RUNTIME_LIBS"] == "0")
+            po["__NO_VC_CRTDBG_p_1"] = addResDefine("__NO_VC_CRTDBG__");
+
+        if (cfg["BUILD"] == "release" && cfg["DEBUG_FLAG"] == "1")
+            po["__NO_VC_CRTDBG_p_1"] = addResDefine("__NO_VC_CRTDBG__");
+*/
+        if (cfg["WXUNIV"] == "1")
+            po["__WXUNIV_DEFINE_p"] = addDefine("__WXUNIVERSAL__");
+/*
+        if (cfg["WXUNIV"] == "1")
+            po["__WXUNIV_DEFINE_p_1"] = addResDefine("__WXUNIVERSAL__");
+*/
+        if (cfg["BUILD"] == "debug" && cfg["DEBUG_FLAG"] == "default")
+            po["__DEBUG_DEFINE_p"] = addDefine("__WXDEBUG__");
+
+        if (cfg["DEBUG_FLAG"] == "1")
+            po["__DEBUG_DEFINE_p"] = addDefine("__WXDEBUG__");
+/*
+        if (cfg["BUILD"] == "debug" && cfg["DEBUG_FLAG"] == "default")
+            po["__DEBUG_DEFINE_p_1"] = addResDefine("__WXDEBUG__");
+
+        if (cfg["DEBUG_FLAG"] == "1")
+            po["__DEBUG_DEFINE_p_1"] = addResDefine("__WXDEBUG__");
+*/
+        if (cfg["USE_EXCEPTIONS"] == "0")
+            po["__EXCEPTIONS_DEFINE_p"] = addDefine("wxNO_EXCEPTIONS");
+/*
+        if (cfg["USE_EXCEPTIONS"] == "0")
+            po["__EXCEPTIONS_DEFINE_p_1"] = addResDefine("wxNO_EXCEPTIONS");
+*/
+        if (cfg["USE_RTTI"] == "0")
+            po["__RTTI_DEFINE_p"] = addDefine("wxNO_RTTI");
+/*
+        if (cfg["USE_RTTI"] == "0")
+            po["__RTTI_DEFINE_p_1"] = addResDefine("wxNO_RTTI");
+*/
+        if (cfg["USE_THREADS"] == "0")
+            po["__THREAD_DEFINE_p"] = addDefine("wxNO_THREADS");
+/*
+        if (cfg["USE_THREADS"] == "0")
+            po["__THREAD_DEFINE_p_1"] = addResDefine("wxNO_THREADS");
+*/
+        if (cfg["UNICODE"] == "1")
+            po["__UNICODE_DEFINE_p"] = addDefine("_UNICODE");
+/*
+        if (cfg["UNICODE"] == "1")
+            po["__UNICODE_DEFINE_p_1"] = addResDefine("_UNICODE");
+*/
+        if (cfg["MSLU"] == "1")
+            po["__MSLU_DEFINE_p"] = addDefine("wxUSE_UNICODE_MSLU=1");
+/*
+        if (cfg["MSLU"] == "1")
+            po["__MSLU_DEFINE_p_1"] = addResDefine("wxUSE_UNICODE_MSLU=1");
+*/
+        if (cfg["SHARED"] == "1")
+            po["__DLLFLAG_p"] = addDefine("WXUSINGDLL");
+/*
+        if (cfg["SHARED"] == "1")
+            po["__DLLFLAG_p_1"] = addResDefine("WXUSINGDLL");
+*/
+        process_3(po, cl, cfg);
+
+
+        // ### Variables, Part 2: ###
+        po["LIBDIRNAME"] = po["prefix"] + "\\lib\\" + getName() + "_" + po["LIBTYPE_SUFFIX"] + cfg["CFG"];
+
+        po["SETUPHDIR"]  = po["LIBDIRNAME"] + "\\" + po["PORTNAME"] + po["WXUNIVNAME"];
+        po["SETUPHDIR"] += po["WXUNICODEFLAG"] + po["WXDEBUGFLAG"];
+
+        po["cflags"]  = easyMode(po["__DEBUGINFO_0"]) + easyMode(po["__OPTIMIZEFLAG_4"]);
+        po["cflags"] += po["__RUNTIME_LIBS_8"] + " " + addDefine("_WIN32_WINNT=0x0400");
+        po["cflags"] += addDefine("__WXMSW__") + po["__WXUNIV_DEFINE_p"];
+        po["cflags"] += po["__DEBUG_DEFINE_p"] + po["__EXCEPTIONS_DEFINE_p"] + po["__RTTI_DEFINE_p"];
+        po["cflags"] += po["__THREAD_DEFINE_p"] + po["__UNICODE_DEFINE_p"] + po["__MSLU_DEFINE_p"];
+        po["cflags"] += addIncludeDir(po["SETUPHDIR"]) + addIncludeDir(po["prefix"] + "\\include") + easyMode(addFlag("-w-")) + easyMode(addIncludeDir(".")) + po["__DLLFLAG_p"] + easyMode(addFlag("-WA"));
+        po["cflags"] += easyMode(addIncludeDir(po["prefix"] + "\\samples")) + easyMode(addDefine("NOPCH")) + po["__RTTIFLAG_9"] + po["__EXCEPTIONSFLAG_10"];
         po["cflags"] += cfg["CPPFLAGS"] + " " + cfg["CXXFLAGS"] + " ";
 
-        po["libs"]  = addFlag("/NOLOGO") + addFlag("/SILENT") + addFlag("/NOI") + addFlag("/DELEXECUTABLE") + addFlag("/EXETYPE:NT") + cfg["LDFLAGS"] + " ";
-        po["libs"] += addFlag("/DEBUG") + addFlag("/CODEVIEW") + addFlag("/su:windows:4.0") + addLinkerDir(po["LIBDIRNAME"]);
-        po["libs"] += addLib("wxmsw" + po["WX_RELEASE_NODOT"] + "d" + cfg["WX_LIB_FLAVOUR"] + "_core");
-        po["libs"] += addLib("wxbase" + po["WX_RELEASE_NODOT"] + "d" + cfg["WX_LIB_FLAVOUR"]);
-        po["libs"] += "wxtiffd.lib wxjpegd.lib wxpngd.lib wxzlibd.lib  wxregexd.lib wxexpatd.lib ";
-        po["libs"] += "kernel32.lib user32.lib gdi32.lib comdlg32.lib winspool.lib winmm.lib shell32.lib ";
-        po["libs"] += "comctl32.lib ole32.lib oleaut32.lib uuid.lib rpcrt4.lib advapi32.lib wsock32.lib odbc32.lib ";
 
-        po["rcflags"]  = addResDefine("_WIN32_WINNT=0x0400") + addResDefine("__WXMSW__") + addResDefine("__WXDEBUG__") + addResIncludeDir(po["prefix"] + "\\include");
-        po["rcflags"] += addResIncludeDir(po["SETUPHDIR"]) + easyMode(addResIncludeDir(".")) + addResIncludeDir(po["prefix"] + "\\samples") + addFlag("-32") + addFlag("-v-") + " ";
+
+        po["libs"]  = easyMode(addFlag("/NOLOGO")) + easyMode(addFlag("/SILENT"));
+        po["libs"] += easyMode(addFlag("/NOI")) + easyMode(addFlag("/DELEXECUTABLE"));
+        po["libs"] += easyMode(addFlag("/EXETYPE:NT"));        
+        po["libs"] += cfg["LDFLAGS"] + " ";
+        po["libs"] += easyMode(po["__DEBUGINFO_1"]);
+        po["libs"] += addLinkerDir(po["LIBDIRNAME"] + "\\");
+        po["libs"] += easyMode(addFlag("/su:windows:4.0"));
+        po["libs"] += po["__WXLIB_ARGS_p"] + po["__WXLIB_OPENGL_p"] + po["__WXLIB_MEDIA_p"];
+        po["libs"] += po["__WXLIB_DBGRID_p"] + po["__WXLIB_ODBC_p"] + po["__WXLIB_XRC_p"];
+        po["libs"] += po["__WXLIB_QA_p"] + po["__WXLIB_AUI_p"] + po["__WXLIB_HTML_p"] + po["__WXLIB_ADV_p"];
+        po["libs"] += po["__WXLIB_CORE_p"] + po["__WXLIB_XML_p"] + po["__WXLIB_NET_p"];
+        po["libs"] += po["__WXLIB_BASE_p"] + po["__WXLIB_MONO_p"];
+        po["libs"] += po["__LIB_TIFF_p"] + po["__LIB_JPEG_p"] + po["__LIB_PNG_p"];
+        po["libs"] += addLib("wxzlib" + po["WXDEBUGFLAG"]) + addLib("wxregex" + po["WXUNICODEFLAG"] + po["WXDEBUGFLAG"]);
+        po["libs"] += addLib("wxexpat" + po["WXDEBUGFLAG"]) + po["EXTRALIBS_FOR_BASE"] + po["__UNICOWS_LIB_p"];
+        po["libs"] += addLib("kernel32") + addLib("user32") + addLib("gdi32") + addLib("comdlg32") + addLib("winspool"); 
+        po["libs"] += addLib("winmm") + addLib("shell32") + addLib("comctl32") + addLib("ole32") + addLib("oleaut32");
+        po["libs"] += addLib("uuid") + addLib("rpcrt4") + addLib("advapi32") + addLib("wsock32") + addLib("odbc32");
+
+        po["rcflags"]  = addResDefine("_WIN32_WINNT=0x0400") + addResDefine("__WXMSW__");
+        po["rcflags"] += po["__WXUNIV_DEFINE_p"] + po["__DEBUG_DEFINE_p"] + po["__EXCEPTIONS_DEFINE_p"];
+        po["rcflags"] += po["__RTTI_DEFINE_p"] + po["__THREAD_DEFINE_p"] + po["__UNICODE_DEFINE_p"];
+        po["rcflags"] += po["__MSLU_DEFINE_p"] + addResIncludeDir(po["SETUPHDIR"]);
+        po["rcflags"] += addResIncludeDir(po["prefix"] + "\\include") + easyMode(addResIncludeDir("."));
+        po["rcflags"] += po["__DLLFLAG_p"];
+        po["rcflags"] += easyMode(addResIncludeDir(po["prefix"] + "\\samples"));
+        po["rcflags"] += easyMode(addFlag("-32")) + easyMode(addFlag("-v-"));
+
 
         po["release"] = cfg["WXVER_MAJOR"] + "." + cfg["WXVER_MINOR"];
         po["version"] = cfg["WXVER_MAJOR"] + "." + cfg["WXVER_MINOR"] + "." + cfg["WXVER_RELEASE"];
@@ -852,6 +1090,7 @@ public:
         po["cxx"] = m_programs.cxx;
         po["ld"] = m_programs.ld;
     }
+
 };
 
 // -------------------------------------------------------------------------------------------------
@@ -1862,6 +2101,8 @@ int main(int argc, char* argv[])
         std::cout << "wx-config revision " << getSvnRevision() << " " << getSvnDate() << std::endl;
         return 0;
     }
+    
+    checkEasyMode(cl);
 
     if (cl.keyExists("--prefix"))
         po["prefix"] = cl["--prefix"];
