@@ -56,6 +56,11 @@ public:
     {
         return m_vars.count(key) != 0;
     }
+    
+    std::map<std::string,std::string>& getVars()
+    {
+        return m_vars;
+    }
 protected:
     std::map<std::string,std::string> m_vars;
 };
@@ -116,6 +121,110 @@ protected:
 
 // -------------------------------------------------------------------------------------------------
 
+/// File setup.h options
+class SetupHOptions
+{
+public:
+    bool operator[](const std::string& key)
+    {
+        return m_vars[key];
+    }
+
+    bool keyExists(const std::string& key)
+    {
+        return m_vars.count(key) != 0;
+    }
+    
+    typedef std::map<std::string,bool> StringBoolMap;
+    
+    StringBoolMap& getVars()
+    {
+        return m_vars;
+    }
+protected:
+    StringBoolMap m_vars;
+
+    
+public:
+    SetupHOptions(const std::string& filepath)
+    {
+        parse(filepath);
+    }
+
+    bool parse(const std::string& filepath)
+    {
+        std::string line;
+        std::ifstream file(filepath.c_str());
+        if (file.is_open())
+        {
+            while (!file.eof())
+            {
+                std::getline(file, line);
+                
+                // does the splitting/parsing
+                split(line);
+            }
+            file.close();
+
+            if (!m_vars.empty())
+                return true;
+        }
+        else
+            std::cout << "   *** Error: Unable to open file '" << filepath.c_str() << "'." << std::endl;
+
+        return false;
+    }
+    
+    void printDebug()
+    {
+        std::cout << "DEBUG: setup.h contents BEGIN -------------------------------------------------" << std::endl;
+        for (StringBoolMap::iterator it = m_vars.begin(); it != m_vars.end(); ++it)
+            std::cout << it->first << "=" << it->second << std::endl;
+        std::cout << "DEBUG: setup.h contents END ---------------------------------------------------" << std::endl;
+    }
+
+protected:
+    void split(std::string& line)
+    {
+        // it's a comment line
+        if (line.find_first_of('/') != std::string::npos)
+            return; // skips the line
+            
+        // strip spaces and tabs
+        line.erase( std::remove(line.begin(), line.end(), ' '), line.end() );
+        line.erase( std::remove(line.begin(), line.end(), '\t'), line.end() );
+        
+        std::string tokDefine("#define");
+        size_t posDefine = line.find_first_of(tokDefine);
+                        
+        // it's a #define line
+        if (posDefine != std::string::npos)
+        {
+            std::string key;
+            bool val;
+
+            // resolves val, checking if last char is 0 or 1
+            char lastChar = line.at(line.length()-1);       // TODO: I don't like this line :P
+            if (lastChar == '0')
+                val = false;
+            else if (lastChar == '1')
+                val = true;
+            else
+                return; // skips the line
+            
+            // resolves key
+            size_t startPos = posDefine + tokDefine.length();
+            key = line.substr(startPos, line.length() - startPos - 1);
+
+            // finally saves the parsed data!
+            m_vars[key] = val;
+        }        
+    }
+};
+
+
+// -------------------------------------------------------------------------------------------------
+
 /// Command line options
 class CmdLineOptions : public Options
 {
@@ -129,6 +238,8 @@ public:
     {
         bool valid = keyExists("--compiler") ||
                      keyExists("--easymode") ||
+                     keyExists("--variable") ||
+                     keyExists("--define-variable") ||
                      keyExists("--prefix") ||
                      keyExists("--wxcfg") ||
                      keyExists("--libs") ||
@@ -160,7 +271,7 @@ public:
             std::cout << "  --wxcfg[=DIR]               Relative path of the build.cfg file (ie. gcc_dll\\mswud)\n";
 //          std::cout << "  --list                      Lists all the library configurations. [NOT IMPLEMENTED]\n";
             std::cout << "  --cflags                    Outputs all pre-processor and compiler flags.\n";
-//          std::cout << "  --cxxflags                  Same as --cflags.\n";
+            std::cout << "  --cxxflags                  Same as --cflags but for C++.\n";
             std::cout << "  --rcflags                   Outputs all resource compiler flags. [UNTESTED]\n";
             std::cout << "  --libs                      Outputs all linker flags required for a wxWidgets application.\n";
             std::cout << std::endl;
@@ -170,6 +281,8 @@ public:
             std::cout << "  --universal[=yes|no]        Uses an universal configuration if found.\n";
             std::cout << "  --easymode[=yes|no]         Outputs warnings, optimize and debug flags automatically.\n";
             std::cout << "  --compiler[=gcc,dmc,vc]     Selects the compiler.\n";
+//          std::cout << "  --variable=NAME             Returns the value of a defined variable.\n";
+//          std::cout << "  --define-variable=NAME=VAL  Sets a global value for a variable.\n";
             std::cout << "  --release                   Outputs the wxWidgets release number.\n";
             std::cout << "  --cc                        Outputs the name of the C compiler.\n";
             std::cout << "  --cxx                       Outputs the name of the C++ compiler.\n";
@@ -184,7 +297,7 @@ public:
             std::cout << "  Also note that using --wxcfg is not needed if you have defined the \n";
             std::cout << "  environmental variable WXCFG.\n";
             std::cout << std::endl;
-            
+
         }
 
         return valid;
@@ -207,7 +320,7 @@ public:
     {
         return m_libs;
     }
-    
+
 protected:
 
     void split(const std::string& line)
@@ -222,12 +335,12 @@ protected:
         else
             m_vars[line] = "";
     }
-    
+
     bool libExists(const std::string& lib)
     {
         return std::find(m_libs.begin(), m_libs.end(), lib) != m_libs.end();
     }
-    
+
     void addLib(const std::string& lib)
     {
         // adds the lib if its not present already
@@ -258,7 +371,7 @@ protected:
                 }
             }
         }
-        
+
         // assuming magic keyword 'std' as a lib parameter for non-monolithic
         // magic keyword std: links with xrc,qa,html,adv,core,base_xml,base_net,base
         if (m_libs.empty() || libExists("std"))
@@ -329,7 +442,7 @@ class Compiler
 public:
     Compiler(const std::string& name) : m_name(name) {}
     // ~Compiler();
-    
+
     std::string easyMode(const std::string& str)
     {
         if (g_sEasyMode)
@@ -337,7 +450,7 @@ public:
         else
             return std::string();
     }
-        
+
     std::string addFlag(const std::string& flag)
     {
         if (flag.empty())
@@ -349,50 +462,50 @@ public:
     {
         std::string result;
         result = m_switches.linkLibs;
-        
+
         if (m_switches.linkerNeedsLibPrefix)
             result += m_switches.libPrefix;
-            
+
         result += lib;
-            
+
         if (m_switches.linkerNeedsLibExtension)
             result += "." + m_switches.libExtension;
-            
+
         result += " ";
-        
+
         if (lib.empty())
             return "";
         return result;
     }
-    
+
     std::string addDefine(const std::string& define)
     {
         if (define.empty())
             return "";
         return m_switches.defines + define + " ";
     }
-    
+
     std::string addResDefine(const std::string& resDefine)
     {
         if (resDefine.empty())
             return "";
         return m_switches.resDefines + " " + resDefine + " ";
     }
-    
+
     std::string addIncludeDir(const std::string& includeDir)
     {
         if (includeDir.empty())
             return "";
         return m_switches.includeDirs + includeDir + " ";
     }
-    
+
     std::string addLinkerDir(const std::string& libDir)
     {
         if (libDir.empty())
             return "";
         return m_switches.libDirs + libDir + " ";
     }
-    
+
     std::string addResIncludeDir(const std::string& resIncludeDir)
     {
         if (resIncludeDir.empty())
@@ -406,14 +519,78 @@ public:
             return "";
         return m_switches.libDirs + libDir + " ";
     }*/
-    
+
     std::string getName() const
     {
         return m_name;
     }
-    
+
     void process_3(Options& po, const CmdLineOptions& cl, BuildFileOptions& cfg)
     {
+        SetupHOptions sho(po["wxcfgsetuphfile"]);
+        
+        // FIXME: proper place of this would be in a first hook, say process_1();
+        #if 0
+        const std::string tokDef = "--define-variable";
+        if (cl.keyExists(tokDef))
+        {   
+            std::string strDef = cl["--define-variable"];
+            size_t sep = strDef.find("=");
+            if (sep != std::string::npos)
+            {
+                std::string key = strDef.substr(0, sep);
+                std::string val = strDef.substr(sep+1, strDef.size()-sep-1);
+                
+                po[key] = val;
+                cfg[key] = val;
+                
+                // FIXME: lvalue expected??
+                /*if (val == "1" || val == "true")
+                    sho[key] = true;
+                else if (val == "0" || val == "false")
+                    sho[key] = false;*/
+            }
+            else
+            {
+                std::cout << "Failed to define a variable as '" << cl["--define-variable"] << "'." << std::endl;
+                std::cout << "The syntax is --define-variable=VARIABLENAME=VARIABLEVALUE" << std::endl;
+                exit(1);
+            }
+        }        
+        #endif
+        
+
+        /// Overriding flags sho->cfg!!
+        /// This makes sho variables haves more privilege than cfg ones
+        //-------------------------------------------------------------
+        if (sho.keyExists("wxUSE_UNICODE_MSLU"))
+            sho["wxUSE_UNICODE_MSLU"] ? cfg["MSLU"] = "1" : cfg["MSLU"] = "0";
+            
+        // TODO: probably better!!!:
+        if (cfg.keyExists("MSLU"))
+            sho["wxUSE_UNICODE_MSLU"] ? cfg["MSLU"] = "1" : cfg["MSLU"] = "0";
+        
+        //-------------------------------------------------------------
+        
+        /// Overriding compiler programs
+        if (cfg.keyExists("CC"))
+            m_programs.cc = cfg["CC"];
+        
+        if (cfg.keyExists("CXX"))
+            m_programs.cxx = cfg["CXX"];
+
+        if (cfg.keyExists("LD"))
+            m_programs.ld = cfg["LD"];
+
+        if (cfg.keyExists("LIB"))
+            m_programs.lib = cfg["LIB"];
+            
+        if (cfg.keyExists("WINDRES"))
+            m_programs.windres = cfg["WINDRES"];
+
+        //-------------------------------------------------------------
+
+        
         // BASENAME variables
         po["LIB_BASENAME_MSW"]  = "wx" + po["PORTNAME"] + po["WXUNIVNAME"] + po["WX_RELEASE_NODOT"];
         po["LIB_BASENAME_MSW"] += po["WXUNICODEFLAG"] + po["WXDEBUGFLAG"] + cfg["WX_LIB_FLAVOUR"];
@@ -508,7 +685,8 @@ public:
             else if (lib == "odbc")
             {
                 if (cfg["MONOLITHIC"] == "0")
-                    po["__WXLIB_ODBC_p"] = addLib(po["LIB_BASENAME_BASE"] + "_odbc");
+                    if (sho["wxUSE_ODBC"])
+                        po["__WXLIB_ODBC_p"] = addLib(po["LIB_BASENAME_BASE"] + "_odbc");
             }
             else if (lib == "dbgrid")
             {
@@ -516,9 +694,12 @@ public:
                 {
                     if (cfg["USE_GUI"] == "1")
                     {
-                        po["__WXLIB_DBGRID_p"] = addLib(po["LIB_BASENAME_MSW"] + "_dbgrid");
-                        po["__WXLIB_ODBC_p"] = addLib(po["LIB_BASENAME_BASE"] + "_odbc");
-                        po["__WXLIB_ADV_p"] = addLib(po["LIB_BASENAME_MSW"] + "_adv");
+                        if (sho["wxUSE_ODBC"])
+                        {
+                            po["__WXLIB_DBGRID_p"] = addLib(po["LIB_BASENAME_MSW"] + "_dbgrid");
+                            po["__WXLIB_ODBC_p"] = addLib(po["LIB_BASENAME_BASE"] + "_odbc");
+                            po["__WXLIB_ADV_p"] = addLib(po["LIB_BASENAME_MSW"] + "_adv");
+                        }
                     }
                 }
             }
@@ -543,21 +724,149 @@ public:
             po["__WXLIB_MONO_p"]  = addLib(po["LIB_BASENAME_MSW"]);
 
 
-
-
-        if (cfg["USE_GUI"] == "1")
-            po["__LIB_TIFF_p"] = addLib("wxtiff" + po["WXDEBUGFLAG"]);
+        /// External libs (to wxWidgets)
 
         if (cfg["USE_GUI"] == "1")
-            po["__LIB_JPEG_p"] = addLib("wxjpeg" + po["WXDEBUGFLAG"]);
+            if (sho["wxUSE_LIBTIFF"])
+                po["__LIB_TIFF_p"] = addLib("wxtiff" + po["WXDEBUGFLAG"]);
 
         if (cfg["USE_GUI"] == "1")
-            po["__LIB_PNG_p"] = addLib("wxpng" + po["WXDEBUGFLAG"]);
+            if (sho["wxUSE_LIBJPEG"])
+                po["__LIB_JPEG_p"] = addLib("wxjpeg" + po["WXDEBUGFLAG"]);
 
+        if (cfg["USE_GUI"] == "1")
+            if (sho["wxUSE_LIBPNG"] && sho["wxUSE_ZLIB"])
+                po["__LIB_PNG_p"] = addLib("wxpng" + po["WXDEBUGFLAG"]);
+
+
+        if (sho["wxUSE_ZLIB"])
+            po["__LIB_ZLIB_p"] = addLib("wxzlib" + po["WXDEBUGFLAG"]);
+            
+        if (sho["wxUSE_REGEX"])
+            po["__LIB_REGEX_p"] = addLib("wxregex" + po["WXUNICODEFLAG"] + po["WXDEBUGFLAG"]);
+
+        // FIXME: in truth the check should be for wxUSE_XML but... the sho parser is very simple :P
+        if (sho["wxUSE_XRC"])
+            po["__LIB_EXPAT_p"] = addLib("wxexpat" + po["WXDEBUGFLAG"]);
+            
         if (cfg["MSLU"] == "1")
-            po["__UNICOWS_LIB_p"] = addLib("unicows");
+            po["__LIB_UNICOWS_p"] = addLib("unicows");
+
+        po["__LIB_KERNEL32_p"] = addLib("kernel32");
+        
+        po["__LIB_USER32_p"] = addLib("user32");
+        
+        po["__LIB_GDI32_p"] = addLib("gdi32");
+        
+        po["__LIB_COMDLG32_p"] = addLib("comdlg32");
+        
+        po["__LIB_WINSPOOL_p"] = addLib("winspool");
+        
+        po["__LIB_WINMM_p"] = addLib("winmm");
+        
+        po["__LIB_SHELL32_p"] = addLib("shell32");
+        
+        po["__LIB_COMCTL32_p"] = addLib("comctl32");
+        
+        if (sho["wxUSE_OLE"])
+            po["__LIB_OLE32_p"] = addLib("ole32");
+        
+        if (sho["wxUSE_OLE"])
+            po["__LIB_OLEAUT32_p"] = addLib("oleaut32");
+            
+        if (sho["wxUSE_OLE"])
+            po["__LIB_OLEACC_p"] = addLib("oleacc");    // NOTE: not being used
+            
+        if (sho["wxUSE_OLE"])
+            po["__LIB_OLE2W32_p"] = addLib("ole2w32");  // NOTE: not being used
+        
+        po["__LIB_UUID_p"] = addLib("uuid");
+        
+        po["__LIB_RPCRT4_p"] = addLib("rpcrt4");
+        
+        po["__LIB_ADVAPI32_p"] = addLib("advapi32");
+              
+        if (sho["wxUSE_SOCKETS"])
+            po["__LIB_WSOCK32_p"] = addLib("wsock32");
+            
+        if (sho["wxUSE_ODBC"])
+            po["__LIB_ODBC32_p"] = addLib("odbc32");
+            
+           
+/*      TODO: From BAKEFILE
+        <!-- link-in system libs that wx depends on: -->
+        <!-- If on borland, we don't need to do much            -->
+        <if cond="FORMAT=='borland'">
+            <sys-lib>ole2w32</sys-lib>
+            <sys-lib>odbc32</sys-lib>
+        </if>
+
+        <!-- Non-borland, on the other hand...                  -->
+        <if cond="FORMAT not in ['borland','msevc4prj']">
+            <sys-lib>kernel32</sys-lib>
+            <sys-lib>user32</sys-lib>
+            <sys-lib>gdi32</sys-lib>
+            <sys-lib>comdlg32</sys-lib>
+            <sys-lib>winspool</sys-lib>
+            <sys-lib>winmm</sys-lib>
+            <sys-lib>shell32</sys-lib>
+            <sys-lib>comctl32</sys-lib>
+            <sys-lib>ole32</sys-lib>
+            <sys-lib>oleaut32</sys-lib>
+            <sys-lib>uuid</sys-lib>
+            <sys-lib>rpcrt4</sys-lib>
+            <sys-lib>advapi32</sys-lib>
+            <sys-lib>wsock32</sys-lib>
+            <sys-lib>odbc32</sys-lib>
+        </if>
+
+        <!-- Libs common to both borland and MSVC               -->
+        <if cond="FORMAT=='msvc' or FORMAT=='msvc6prj' or FORMAT=='borland'">
+            <sys-lib>oleacc</sys-lib>
+*/     
     }
     
+    std::string getAllLibs(Options& po)
+    {
+        std::string libs;
+        libs += po["__WXLIB_ARGS_p"] + po["__WXLIB_OPENGL_p"] + po["__WXLIB_MEDIA_p"];
+        libs += po["__WXLIB_DBGRID_p"] + po["__WXLIB_ODBC_p"] + po["__WXLIB_XRC_p"];
+        libs += po["__WXLIB_QA_p"] + po["__WXLIB_AUI_p"] + po["__WXLIB_HTML_p"] + po["__WXLIB_ADV_p"];
+        libs += po["__WXLIB_CORE_p"] + po["__WXLIB_XML_p"] + po["__WXLIB_NET_p"];
+        libs += po["__WXLIB_BASE_p"] + po["__WXLIB_MONO_p"];
+        libs += po["__LIB_TIFF_p"] + po["__LIB_JPEG_p"] + po["__LIB_PNG_p"];
+        libs += po["__LIB_ZLIB_p"] + po["__LIB_REGEX_p"] + po["__LIB_EXPAT_p"];
+        libs += po["EXTRALIBS_FOR_BASE"] + po["__UNICOWS_LIB_p"];
+        libs += po["__LIB_KERNEL32_p"] + po["__LIB_USER32_p"] + po["__LIB_GDI32_p"];
+        libs += po["__LIB_COMDLG32_p"] + po["__LIB_REGEX_p"] + po["__LIB_WINSPOOL_p"];
+        libs += po["__LIB_WINMM_p"] + po["__LIB_SHELL32_p"] + po["__LIB_COMCTL32_p"];
+        libs += po["__LIB_OLE32_p"] + po["__LIB_OLEAUT32_p"] + po["__LIB_UUID_p"];
+        libs += po["__LIB_RPCRT4_p"] + po["__LIB_ADVAPI32_p"] + po["__LIB_WSOCK32_p"];
+        libs += po["__LIB_ODBC32_p"];
+        
+        return libs;
+    }
+
+    void getVariablesValues(Options& po, const CmdLineOptions& cl, BuildFileOptions& cfg)
+    {
+        #if 0
+        if (cl.keyExists("--variable"))
+        {
+            po["variable"] = "\n";
+            
+            if (po.keyExists(cl["--variable"]))
+                po["variable"] += "PO: " + cl["--variable"] + "=" + po[cl["--variable"]] + "\n";
+            else
+                po["variable"] += "PO: " + cl["--variable"] + " does not exist.\n";
+
+            if (cfg.keyExists(cl["--variable"]))
+                cfg["variable"] += "CFG: " + cl["--variable"] + "=" + cfg[cl["--variable"]] + "\n";
+            else
+                cfg["variable"] += "CFG: " + cl["--variable"] + " does not exist.\n";
+        }
+        #endif
+    }
+
 protected:
     // set the following members in your class
     std::string m_name;
@@ -595,7 +904,7 @@ public:
         m_switches.supportsPCH = true;
         m_switches.PCHExtension = "h.gch";
     }
-    
+
     void process(Options& po, const CmdLineOptions& cl)
     {
         /// Searchs for '<prefix>\build\msw\config.*' first
@@ -739,7 +1048,7 @@ public:
 
         if (cfg["USE_THREADS"] == "1")
             po["__THREADSFLAG"] = addFlag("-mthreads");
-            
+
 //----------------------------------------------------
 
         // ### Variables, Part 2: ###
@@ -762,6 +1071,9 @@ public:
         po["libs"] += easyMode(po["__DEBUGINFO"]) + po["__THREADSFLAG"];
         po["libs"] += addLinkerDir(po["LIBDIRNAME"]);
         po["libs"] += easyMode(addFlag("-Wl,--subsystem,windows")) + easyMode(addFlag("-mwindows"));
+        po["libs"] += getAllLibs(po);
+        
+        /*
         po["libs"] += po["__WXLIB_ARGS_p"] + po["__WXLIB_OPENGL_p"] + po["__WXLIB_MEDIA_p"];
         po["libs"] += po["__WXLIB_DBGRID_p"] + po["__WXLIB_ODBC_p"] + po["__WXLIB_XRC_p"];
         po["libs"] += po["__WXLIB_QA_p"] + po["__WXLIB_AUI_p"] + po["__WXLIB_HTML_p"] + po["__WXLIB_ADV_p"];
@@ -773,7 +1085,7 @@ public:
         po["libs"] += addLib("kernel32") + addLib("user32") + addLib("gdi32") + addLib("comdlg32") + addLib("winspool");
         po["libs"] += addLib("winmm") + addLib("shell32") + addLib("comctl32") + addLib("ole32") + addLib("oleaut32");
         po["libs"] += addLib("uuid") + addLib("rpcrt4") + addLib("advapi32") + addLib("wsock32") + addLib("odbc32");
-
+*/
         po["rcflags"]  = addFlag("--use-temp-file") + addResDefine("__WXMSW__") + po["__WXUNIV_DEFINE_p_1"];
         po["rcflags"] += po["__DEBUG_DEFINE_p_1"] + po["__EXCEPTIONS_DEFINE_p_1"];
         po["rcflags"] += po["__RTTI_DEFINE_p_1"] + po["__THREAD_DEFINE_p_1"] + po["__UNICODE_DEFINE_p_1"];
@@ -787,6 +1099,8 @@ public:
         po["cc"] = m_programs.cc;
         po["cxx"] = m_programs.cxx;
         po["ld"] = m_programs.ld;
+        
+        getVariablesValues(po, cl, cfg);
     }
 };
 
@@ -818,8 +1132,8 @@ public:
         m_switches.linkerNeedsLibPrefix = false;
         m_switches.linkerNeedsLibExtension = true;
     }
-    
-    
+
+
     void process(Options& po, const CmdLineOptions& cl)
     {
         /// Searchs for '<prefix>\build\msw\config.*' first
@@ -870,7 +1184,7 @@ public:
 
         if (cfg["MONOLITHIC"] == "1")
             po["EXTRALIBS_FOR_BASE"] = "";
-            
+
 //----------------------------------------------------
 
         if (cfg["BUILD"] == "debug" && cfg["DEBUG_INFO"] == "default")
@@ -966,7 +1280,7 @@ public:
 
         if (cfg["USE_EXCEPTIONS"] == "1")
             po["__EXCEPTIONSFLAG_10"] = addFlag("-Ae");//7
-            
+
 //----------------------------------------------------
 /*
         if (cfg["BUILD"] == "debug" && cfg["DEBUG_RUNTIME_LIBS"] == "0")
@@ -1057,22 +1371,12 @@ public:
 
         po["libs"]  = easyMode(addFlag("/NOLOGO")) + easyMode(addFlag("/SILENT"));
         po["libs"] += easyMode(addFlag("/NOI")) + easyMode(addFlag("/DELEXECUTABLE"));
-        po["libs"] += easyMode(addFlag("/EXETYPE:NT"));        
+        po["libs"] += easyMode(addFlag("/EXETYPE:NT"));
         po["libs"] += cfg["LDFLAGS"] + " ";
         po["libs"] += easyMode(po["__DEBUGINFO_1"]);
         po["libs"] += addLinkerDir(po["LIBDIRNAME"] + "\\");
         po["libs"] += easyMode(addFlag("/su:windows:4.0"));
-        po["libs"] += po["__WXLIB_ARGS_p"] + po["__WXLIB_OPENGL_p"] + po["__WXLIB_MEDIA_p"];
-        po["libs"] += po["__WXLIB_DBGRID_p"] + po["__WXLIB_ODBC_p"] + po["__WXLIB_XRC_p"];
-        po["libs"] += po["__WXLIB_QA_p"] + po["__WXLIB_AUI_p"] + po["__WXLIB_HTML_p"] + po["__WXLIB_ADV_p"];
-        po["libs"] += po["__WXLIB_CORE_p"] + po["__WXLIB_XML_p"] + po["__WXLIB_NET_p"];
-        po["libs"] += po["__WXLIB_BASE_p"] + po["__WXLIB_MONO_p"];
-        po["libs"] += po["__LIB_TIFF_p"] + po["__LIB_JPEG_p"] + po["__LIB_PNG_p"];
-        po["libs"] += addLib("wxzlib" + po["WXDEBUGFLAG"]) + addLib("wxregex" + po["WXUNICODEFLAG"] + po["WXDEBUGFLAG"]);
-        po["libs"] += addLib("wxexpat" + po["WXDEBUGFLAG"]) + po["EXTRALIBS_FOR_BASE"] + po["__UNICOWS_LIB_p"];
-        po["libs"] += addLib("kernel32") + addLib("user32") + addLib("gdi32") + addLib("comdlg32") + addLib("winspool"); 
-        po["libs"] += addLib("winmm") + addLib("shell32") + addLib("comctl32") + addLib("ole32") + addLib("oleaut32");
-        po["libs"] += addLib("uuid") + addLib("rpcrt4") + addLib("advapi32") + addLib("wsock32") + addLib("odbc32");
+        po["libs"] += getAllLibs(po);        
 
         po["rcflags"]  = addResDefine("_WIN32_WINNT=0x0400") + addResDefine("__WXMSW__");
         po["rcflags"] += po["__WXUNIV_DEFINE_p"] + po["__DEBUG_DEFINE_p"] + po["__EXCEPTIONS_DEFINE_p"];
@@ -1089,6 +1393,8 @@ public:
         po["cc"] = m_programs.cc;
         po["cxx"] = m_programs.cxx;
         po["ld"] = m_programs.ld;
+        
+        getVariablesValues(po, cl, cfg);
     }
 
 };
@@ -1121,7 +1427,7 @@ public:
         m_switches.linkerNeedsLibPrefix = false;
         m_switches.linkerNeedsLibExtension = true;
     }
-    
+
     void process(Options& po, const CmdLineOptions& cl)
     {
         /// Searchs for '<prefix>\build\msw\config.*' first
@@ -1172,7 +1478,7 @@ public:
 
         if (cfg["MONOLITHIC"] == "1")
             po["EXTRALIBS_FOR_BASE"] = "";
-            
+
         if (cfg["TARGET_CPU"] == "amd64")
             po["DIR_SUFFIX_CPU"] = "_amd64";
 
@@ -1250,7 +1556,7 @@ public:
 
         if (cfg["DEBUG_RUNTIME_LIBS"] == "1")
             po["__DEBUGRUNTIME_3"] = "d";
-            
+
 //----------------------------------------------------
 
         if (cfg["BUILD"] == "debug")
@@ -1284,7 +1590,7 @@ public:
 
         if (cfg["USE_EXCEPTIONS"] == "1")
             po["__EXCEPTIONSFLAG_10"] = addFlag("/EHsc");
-            
+
 //----------------------------------------------------
 
         if (cfg["BUILD"] == "debug" && cfg["DEBUG_RUNTIME_LIBS"] == "0")
@@ -1375,18 +1681,8 @@ public:
         po["libs"] += cfg["LDFLAGS"] + " ";
         po["libs"] += easyMode(po["__DEBUGINFO_1"]) + " " + po["LINK_TARGET_CPU"] + " ";
         po["libs"] += addLinkerDir(po["LIBDIRNAME"]);
-        po["libs"] += easyMode(addFlag("/SUBSYSTEM:WINDOWS"));   
-        po["libs"] += po["__WXLIB_ARGS_p"] + po["__WXLIB_OPENGL_p"] + po["__WXLIB_MEDIA_p"];
-        po["libs"] += po["__WXLIB_DBGRID_p"] + po["__WXLIB_ODBC_p"] + po["__WXLIB_XRC_p"];
-        po["libs"] += po["__WXLIB_QA_p"] + po["__WXLIB_AUI_p"] + po["__WXLIB_HTML_p"] + po["__WXLIB_ADV_p"];
-        po["libs"] += po["__WXLIB_CORE_p"] + po["__WXLIB_XML_p"] + po["__WXLIB_NET_p"];
-        po["libs"] += po["__WXLIB_BASE_p"] + po["__WXLIB_MONO_p"];
-        po["libs"] += po["__LIB_TIFF_p"] + po["__LIB_JPEG_p"] + po["__LIB_PNG_p"];
-        po["libs"] += addLib("wxzlib" + po["WXDEBUGFLAG"]) + addLib("wxregex" + po["WXUNICODEFLAG"] + po["WXDEBUGFLAG"]);
-        po["libs"] += addLib("wxexpat" + po["WXDEBUGFLAG"]) + po["EXTRALIBS_FOR_BASE"] + po["__UNICOWS_LIB_p"];
-        po["libs"] += addLib("kernel32") + addLib("user32") + addLib("gdi32") + addLib("comdlg32") + addLib("winspool"); 
-        po["libs"] += addLib("winmm") + addLib("shell32") + addLib("comctl32") + addLib("ole32") + addLib("oleaut32");
-        po["libs"] += addLib("uuid") + addLib("rpcrt4") + addLib("advapi32") + addLib("wsock32") + addLib("odbc32");
+        po["libs"] += easyMode(addFlag("/SUBSYSTEM:WINDOWS"));
+        po["libs"] += getAllLibs(po);
 
         po["rcflags"]  = addResDefine("WIN32") + po["____DEBUGRUNTIME_2_p_1"] + po["__NO_VC_CRTDBG_p_1"] + addResDefine("__WXMSW__");
         po["rcflags"] += po["__WXUNIV_DEFINE_p_1"] + po["__DEBUG_DEFINE_p_1"] + po["__EXCEPTIONS_DEFINE_p_1"];
@@ -1402,7 +1698,9 @@ public:
         po["cc"] = m_programs.cc;
         po["cxx"] = m_programs.cxx;
         po["ld"] = m_programs.ld;
-    }    
+        
+        getVariablesValues(po, cl, cfg);
+    }
 };
 
 // -------------------------------------------------------------------------------------------------
@@ -1433,7 +1731,7 @@ public:
         m_switches.linkerNeedsLibPrefix = true;//TODO:!
         m_switches.linkerNeedsLibExtension = true;
     }
-    
+
     void process(Options& po, const CmdLineOptions& cl)
     {
         /// Searchs for '<prefix>\build\msw\config.*' first
@@ -1457,7 +1755,7 @@ public:
 
         if (cfg["USE_GUI"] == "1")
             po["PORTNAME"] = "msw";
-            
+
         if (cfg["BUILD"] == "debug" && cfg["DEBUG_FLAG"] == "default")
             po["WXDEBUGFLAG"] = "d";
 
@@ -1523,16 +1821,16 @@ public:
 //---------from here, simmilar to VC
         if (cfg["RUNTIME_LIBS"] == "dynamic")
             po["__RUNTIME_LIBS_6"] = addFlag("-br");
-            
+
         if (cfg["RUNTIME_LIBS"] == "static")
             po["__RUNTIME_LIBS_6"] = addFlag("");
 //---------simmilar:
         if (cfg["USE_RTTI"] == "0")
             po["__RTTIFLAG_7"] = addFlag("");
-        
+
         if (cfg["USE_RTTI"] == "1")
             po["__RTTIFLAG_7"] = addFlag("-xr");
-       
+
         if (cfg["USE_EXCEPTIONS"] == "0")
             po["__EXCEPTIONSFLAG_8"] = addFlag("");
 
@@ -1592,18 +1890,8 @@ public:
         po["libs"]  = cfg["LDFLAGS"] + " ";
         po["libs"] += easyMode(po["__DEBUGINFO_1"]);
         po["libs"] += addLinkerDir(po["LIBDIRNAME"]);
-        po["lbc"] += "    libpath " + po["LIBDIRNAME"] + " system nt_win ref '_WinMain@16'";     
-        po["libs"] += po["__WXLIB_ARGS_p"] + po["__WXLIB_OPENGL_p"] + po["__WXLIB_MEDIA_p"];
-        po["libs"] += po["__WXLIB_DBGRID_p"] + po["__WXLIB_ODBC_p"] + po["__WXLIB_XRC_p"];
-        po["libs"] += po["__WXLIB_QA_p"] + po["__WXLIB_AUI_p"] + po["__WXLIB_HTML_p"] + po["__WXLIB_ADV_p"];
-        po["libs"] += po["__WXLIB_CORE_p"] + po["__WXLIB_XML_p"] + po["__WXLIB_NET_p"];
-        po["libs"] += po["__WXLIB_BASE_p"] + po["__WXLIB_MONO_p"];
-        po["libs"] += po["__LIB_TIFF_p"] + po["__LIB_JPEG_p"] + po["__LIB_PNG_p"];
-        po["libs"] += addLib("wxzlib" + po["WXDEBUGFLAG"]) + addLib("wxregex" + po["WXUNICODEFLAG"] + po["WXDEBUGFLAG"]);
-        po["libs"] += addLib("wxexpat" + po["WXDEBUGFLAG"]) + po["EXTRALIBS_FOR_BASE"] + po["__UNICOWS_LIB_p"];
-        po["libs"] += addLib("kernel32") + addLib("user32") + addLib("gdi32") + addLib("comdlg32") + addLib("winspool");
-        po["libs"] += addLib("winmm") + addLib("shell32") + addLib("comctl32") + addLib("ole32") + addLib("oleaut32");
-        po["libs"] += addLib("uuid") + addLib("rpcrt4") + addLib("advapi32") + addLib("wsock32") + addLib("odbc32");
+        po["lbc"] += "    libpath " + po["LIBDIRNAME"] + " system nt_win ref '_WinMain@16'";
+        po["libs"] += getAllLibs(po);
 
         po["rcflags"]  = addFlag("-q") + addFlag("-ad") + addFlag("-bt=nt") + addFlag("-r");
         po["rcflags"] += addResDefine("__WXMSW__") + po["__WXUNIV_DEFINE_p"];
@@ -1618,7 +1906,9 @@ public:
         po["version"] = cfg["WXVER_MAJOR"] + "." + cfg["WXVER_MINOR"] + "." + cfg["WXVER_RELEASE"];
         po["cc"] = m_programs.cc;
         po["cxx"] = m_programs.cxx;
-        po["ld"] = m_programs.ld;    
+        po["ld"] = m_programs.ld;
+        
+        getVariablesValues(po, cl, cfg);
     }
 };
 
@@ -1650,7 +1940,7 @@ public:
         m_switches.linkerNeedsLibPrefix = false;
         m_switches.linkerNeedsLibExtension = true;
     }
-    
+
     void process(Options& po, const CmdLineOptions& cl) {}
 };
 
@@ -1660,12 +1950,12 @@ void normalizePath(std::string& path)
 {
     // converts all slashes to backslashes
     std::replace(path.begin(), path.end(), '/', '\\');
-    
+
     // removes the first slash (if any) from the given path
     std::string::iterator firstChar = path.begin();
     if (*firstChar == '\\')
         path.erase(firstChar);
-    
+
     // removes the last slash (if any) from the given path
     std::string::iterator lastChar = path.end() - 1;
     if (*lastChar == '\\')
@@ -1679,10 +1969,10 @@ void autodetectConfiguration(Options& po)
     // TODO: instead of this prebuild list that doesn't even take in account
     // checkAdditionalFlags() and that doesn't admits multiple wx configurations
     // a "dir list" needs to be done
-    
-    
+
+
     std::vector<std::string> cfgs;
-    /// Searchs for '<prefix>\lib\gcc_[dll|lib][CFG]\[msw|base][univ][u][d]\build.cfg' next
+    /// Searchs for '<prefix>\lib\gcc_[dll|lib][CFG]\[msw|base][univ][u][d]\\wx\setup.h' next
     // TODO: account for $(CFG), $(DIR_SUFFIX_CPU)
     cfgs.push_back("gcc_dll\\msw");
     cfgs.push_back("gcc_dll\\mswu");
@@ -1712,12 +2002,39 @@ void autodetectConfiguration(Options& po)
     cfgs.push_back("gcc_lib\\baseuniv");
     cfgs.push_back("gcc_lib\\baseunivu");
     cfgs.push_back("gcc_lib\\baseunivud");
-    
-    /// Searchs for '<prefix>\lib\dmc_lib\mswd\build.cfg' next
-    // TODO: check if a build.cfg really exists
+
+    /// Searchs for '<prefix>\lib\dmc_lib\mswd\wx\setup.h' next
+    // TODO: account for $(CFG)
+    cfgs.push_back("dmc_dll\\msw");
+    cfgs.push_back("dmc_dll\\mswu");
+    cfgs.push_back("dmc_dll\\mswud");
+    cfgs.push_back("dmc_dll\\mswd");
+    cfgs.push_back("dmc_dll\\mswuniv");
+    cfgs.push_back("dmc_dll\\mswunivu");
+    cfgs.push_back("dmc_dll\\mswunivud");
+    cfgs.push_back("dmc_lib\\msw");
+    cfgs.push_back("dmc_lib\\mswu");
+    cfgs.push_back("dmc_lib\\mswud");
     cfgs.push_back("dmc_lib\\mswd");
-    
-    /// Searchs for '<prefix>\lib\vc[cpu]_[dll|lib][CFG]\[msw|base][univ][u][d]\build.cfg' next
+    cfgs.push_back("dmc_lib\\mswuniv");
+    cfgs.push_back("dmc_lib\\mswunivu");
+    cfgs.push_back("dmc_lib\\mswunivud");
+    cfgs.push_back("dmc_dll\\base");
+    cfgs.push_back("dmc_dll\\baseu");
+    cfgs.push_back("dmc_dll\\baseud");
+    cfgs.push_back("dmc_dll\\based");
+    cfgs.push_back("dmc_dll\\baseuniv");
+    cfgs.push_back("dmc_dll\\baseunivu");
+    cfgs.push_back("dmc_dll\\baseunivud");
+    cfgs.push_back("dmc_lib\\base");
+    cfgs.push_back("dmc_lib\\baseu");
+    cfgs.push_back("dmc_lib\\baseud");
+    cfgs.push_back("dmc_lib\\based");
+    cfgs.push_back("dmc_lib\\baseuniv");
+    cfgs.push_back("dmc_lib\\baseunivu");
+    cfgs.push_back("dmc_lib\\baseunivud");
+
+    /// Searchs for '<prefix>\lib\vc[cpu]_[dll|lib][CFG]\[msw|base][univ][u][d]\wx\setup.h' next
     // TODO: account for $(CFG), $(DIR_SUFFIX_CPU)
     cfgs.push_back("vc_dll\\msw");
     cfgs.push_back("vc_dll\\mswu");
@@ -1747,8 +2064,8 @@ void autodetectConfiguration(Options& po)
     cfgs.push_back("vc_lib\\baseuniv");
     cfgs.push_back("vc_lib\\baseunivu");
     cfgs.push_back("vc_lib\\baseunivud");
-    
-    /// Searchs for '<prefix>\lib\wat_[dll|lib][CFG]\[msw|base][univ][u][d]\build.cfg' next
+
+    /// Searchs for '<prefix>\lib\wat_[dll|lib][CFG]\[msw|base][univ][u][d]\wx\setup.h' next
     // TODO: account for $(CFG)
     cfgs.push_back("wat_dll\\msw");
     cfgs.push_back("wat_dll\\mswu");
@@ -1777,14 +2094,14 @@ void autodetectConfiguration(Options& po)
     cfgs.push_back("wat_lib\\based");
     cfgs.push_back("wat_lib\\baseuniv");
     cfgs.push_back("wat_lib\\baseunivu");
-    cfgs.push_back("wat_lib\\baseunivud");    
+    cfgs.push_back("wat_lib\\baseunivud");
 
-    // reads the first build.cfg it founds
+    // reads the first setup.h it founds
     for(std::vector<std::string>::const_iterator it = cfgs.begin(); it != cfgs.end(); ++it)
     {
-        std::string file = po["prefix"] + "\\lib\\" + *it + "\\build.cfg";
-        std::ifstream build_cfg(file.c_str());
-        if (build_cfg.is_open())
+        std::string file = po["prefix"] + "\\lib\\" + *it + "\\wx\\setup.h";
+        std::ifstream setupH(file.c_str());
+        if (setupH.is_open())
         {
             if (!po.keyExists("wxcfg"))
                 po["wxcfg"] = *it;
@@ -1795,7 +2112,7 @@ void autodetectConfiguration(Options& po)
                 std::cout << "       Please use the --wxcfg flag (as in `wx-config --wxcfg=gcc_dll\\mswud`)" << std::endl;
                 std::cout << "       or set the environment variable WXCFG (as in WXCFG=gcc_dll\\mswud)" << std::endl;
                 std::cout << "       to specify which configuration exactly you want to use." << std::endl;
-                
+
                 exit(1);
             }
         }
@@ -1805,14 +2122,14 @@ void autodetectConfiguration(Options& po)
     {
         // TODO: this never reaches thanks to the new autodetection algorithm
 
-        std::cout << "   *** Error: No build.cfg file has been auto-detected." << std::endl;
+        std::cout << "   *** Error: No setup.h file has been auto-detected." << std::endl;
         std::cout << std::endl;
         std::cout << "       Please use the --wxcfg flag (as in `wx-config --wxcfg=gcc_dll\\mswud`)" << std::endl;
         std::cout << "       or set the environment variable WXCFG (as in WXCFG=gcc_dll\\mswud)" << std::endl;
         std::cout << "       to specify which configuration exactly you want to use." << std::endl;
-        
+
         exit(1);
-    }    
+    }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -1846,7 +2163,7 @@ void checkAdditionalFlags(Options& po, CmdLineOptions& cl)
         if (cl["--universal"] == "no")
         {
             // Pattern: Remove /univ/ in /(msw|base)univ/
-            
+
             const std::string univStr("univ");
             size_t univPos = po["wxcfg"].rfind(univStr);
             if (univPos != std::string::npos)
@@ -1855,7 +2172,7 @@ void checkAdditionalFlags(Options& po, CmdLineOptions& cl)
         else if (cl["--universal"] == "yes" || cl["--universal"].empty())
         {
             // Pattern: Replace /(msw|base)/ to /(msw|base)univ/
-            
+
             const std::string univStr("univ");
             size_t univPos = po["wxcfg"].rfind(univStr);
             if (univPos == std::string::npos)
@@ -1874,14 +2191,14 @@ void checkAdditionalFlags(Options& po, CmdLineOptions& cl)
             }
         }
     }
-    
+
     if (cl.keyExists("--unicode"))
     {
         if (cl["--unicode"] == "no")
         {
             // Pattern: Remove /.*u/ if it's present
             // or /.*ud/ if --debug is specified
-                    
+
             std::string::iterator lastChar = po["wxcfg"].end() - 1;
             if (*lastChar == 'u')
                 po["wxcfg"].erase(lastChar);
@@ -1892,7 +2209,7 @@ void checkAdditionalFlags(Options& po, CmdLineOptions& cl)
         {
             // Pattern: Add /.*u/ if it's not already
             // or /.*ud/ if --debug is specified
-            
+
             // TODO: string::find will be better
             std::string::iterator lastChar = po["wxcfg"].end() - 1;
             if (*lastChar != 'u' && *lastChar != 'd')
@@ -1904,7 +2221,7 @@ void checkAdditionalFlags(Options& po, CmdLineOptions& cl)
             }
         }
     }
-    
+
     if (cl.keyExists("--debug"))
     {
         if (cl["--debug"] == "no")
@@ -1922,13 +2239,13 @@ void checkAdditionalFlags(Options& po, CmdLineOptions& cl)
                 po["wxcfg"] += "d";
         }
     }
-    
+
     if (cl.keyExists("--static"))
     {
         if (cl["--static"] == "no")
         {
             // Pattern: Replace /.*_lib/ to /.*_dll/
-            
+
             size_t loc = po["wxcfg"].find("_lib");
             if (loc != std::string::npos)
                 po["wxcfg"].replace(loc, std::string("_dll").length(), "_dll");
@@ -1936,13 +2253,13 @@ void checkAdditionalFlags(Options& po, CmdLineOptions& cl)
         else if (cl["--static"] == "yes" || cl["--static"].empty())
         {
             // Pattern: Replace /.*_dll/ to /.*_lib/
-            
+
             size_t loc = po["wxcfg"].find("_dll");
             if (loc != std::string::npos)
                 po["wxcfg"].replace(loc, std::string("_lib").length(), "_lib");
         }
     }
-    
+
     if (cl.keyExists("--compiler"))
     {
         if (cl["--compiler"] == "gcc")
@@ -1966,7 +2283,7 @@ void detectCompiler(Options& po, const CmdLineOptions& cl)
     // input example of po["wxcfg"]:
     // gcc_dll\\mswud
     // vc_lib\\msw
-    
+
     if (po["wxcfg"].find("gcc_") != std::string::npos)
     {
         CompilerMinGW compiler;
@@ -2000,7 +2317,7 @@ void detectCompiler(Options& po, const CmdLineOptions& cl)
     else
     {
         // TODO: this never reaches thanks to the new autodetection algorithm
-        
+
         std::cout << "   *** Error: No supported compiler has been detected in the configuration '" << po["wxcfg"] << "'." << std::endl;
         std::cout << std::endl;
         std::cout << "       The specified wxcfg must start with a 'gcc_', 'dmc_' or 'vc_'" << std::endl;
@@ -2026,35 +2343,50 @@ void validatePrefix(const std::string& prefix)
         std::cout << "       to specify where is your installation of wxWidgets." << std::endl;
 
         exit(1);
-    }    
+    }
 }
 
 // -------------------------------------------------------------------------------------------------
 
-bool validateConfiguration(const std::string& wxcfgfile, bool exitIfError = true)
-{   
+bool validateConfiguration(const std::string& wxcfgfile, const std::string& wxcfgsetuphfile, bool exitIfError = true)
+{
     std::ifstream build_cfg(wxcfgfile.c_str());
-    
-    bool isOpen = build_cfg.is_open();
-    if (!isOpen && exitIfError)
+    std::ifstream setup_h(wxcfgsetuphfile.c_str());
+
+    bool isBuildCfgOpen = build_cfg.is_open();
+    bool isSetupHOpen = setup_h.is_open();
+
+    if (!isBuildCfgOpen && exitIfError)
     {
+        if (!isSetupHOpen && exitIfError)
+        {
+            std::cout << "   *** Error: No valid setup.h of wxWidgets has been found at location:" << std::endl;
+            std::cout << "       " << wxcfgsetuphfile << std::endl;
+            std::cout << std::endl;
+            std::cout << "       Please use the --wxcfg flag (as in `wx-config --wxcfg=gcc_dll\\mswud`)" << std::endl;
+            std::cout << "       or set the environment variable WXCFG (as in WXCFG=gcc_dll\\mswud)" << std::endl;
+            std::cout << "       to specify which configuration exactly you want to use." << std::endl;
+
+            exit(1);
+        }
+
         std::cout << "   *** Error: No valid configuration of wxWidgets has been found at location:" << std::endl;
         std::cout << "       " << wxcfgfile << std::endl;
         std::cout << std::endl;
         std::cout << "       Please use the --wxcfg flag (as in `wx-config --wxcfg=gcc_dll\\mswud`)" << std::endl;
         std::cout << "       or set the environment variable WXCFG (as in WXCFG=gcc_dll\\mswud)" << std::endl;
         std::cout << "       to specify which configuration exactly you want to use." << std::endl;
-        
-        exit(1);        
+
+        exit(1);
     }
-    return isOpen;
+    return isBuildCfgOpen && isSetupHOpen;
 }
 
 // -------------------------------------------------------------------------------------------------
 
 //TODO: why const qualifier for cl doesn't works
 void outputFlags(Options& po, CmdLineOptions& cl)
-{
+{        
     /// Outputs flags to console
     if (cl.keyExists("--cc"))
         std::cout << po["cc"];
@@ -2079,10 +2411,11 @@ void outputFlags(Options& po, CmdLineOptions& cl)
     if (cl.keyExists("--basename"))
         std::cout << po["basename"];
 #endif
-   
+
 }
 
 // -------------------------------------------------------------------------------------------------
+
 
 
 int main(int argc, char* argv[])
@@ -2095,13 +2428,13 @@ int main(int argc, char* argv[])
 
     if (!cl.validArgs())
         return 1;
-        
+
     if (cl.keyExists("-v"))
     {
         std::cout << "wx-config revision " << getSvnRevision() << " " << getSvnDate() << std::endl;
         return 0;
     }
-    
+
     checkEasyMode(cl);
 
     if (cl.keyExists("--prefix"))
@@ -2112,33 +2445,35 @@ int main(int argc, char* argv[])
         po["prefix"] = "C:\\wxWidgets";
 
     normalizePath(po["prefix"]);
-    
+
     validatePrefix(po["prefix"]);
 
     if (cl.keyExists("--wxcfg"))
         po["wxcfg"] = cl["--wxcfg"];
-    else if (getenv("WXCFG") && cl["--prefix"].empty())    // TODO: check logic
+    else if (getenv("WXCFG") && !cl.keyExists("--prefix"))
         po["wxcfg"] = getenv("WXCFG");
     else
     {
         // TODO: this behaviour could be better, directory listing is required
-        
+
         // Try if something valid can be found trough deriving checkAdditionalFlags() first
         po["wxcfg"] = "gcc_dll\\msw";
         po["wxcfgfile"] = po["prefix"] + "\\lib\\" + po["wxcfg"] + "\\build.cfg";
+        po["wxcfgsetuphfile"] = po["prefix"] + "\\lib\\" + po["wxcfg"] + "\\wx\\setup.h";
         checkAdditionalFlags(po, cl);
-        
-        if (!validateConfiguration(po["wxcfgfile"], false))
+
+        if (!validateConfiguration(po["wxcfgfile"], po["wxcfgsetuphfile"], false))
             autodetectConfiguration(po);    // important function
     }
 
     normalizePath(po["wxcfg"]);
     checkAdditionalFlags(po, cl);
     po["wxcfgfile"] = po["prefix"] + "\\lib\\" + po["wxcfg"] + "\\build.cfg";
-    validateConfiguration(po["wxcfgfile"]);
+    po["wxcfgsetuphfile"] = po["prefix"] + "\\lib\\" + po["wxcfg"] + "\\wx\\setup.h";
+    validateConfiguration(po["wxcfgfile"], po["wxcfgsetuphfile"]);
     
     detectCompiler(po, cl);
-    outputFlags(po, cl);
-
+    outputFlags(po, cl);    
+   
     return 0;
 }
