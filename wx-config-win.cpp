@@ -2157,14 +2157,14 @@ void replaceCompilerIfFound(std::string& wxcfg, const std::string& compiler)
 
 // -------------------------------------------------------------------------------------------------
 
-void checkAdditionalFlags(Options& po, CmdLineOptions& cl)
+void checkAdditionalFlags(Options& po, const CmdLineOptions& cl)
 {
     /// Modifies wxcfg as 'vc[cpu]_[dll|lib][CFG]\[msw|base][univ][u][d]' accordingly
     /// or 'gcc_[dll|lib][CFG]\[msw|base][univ][u][d]'
 
     if (cl.keyExists("--universal"))
     {
-        if (cl["--universal"] == "no")
+        if (cl.keyValue("--universal") == "no")
         {
             // Pattern: Remove /univ/ in /(msw|base)univ/
 
@@ -2173,7 +2173,7 @@ void checkAdditionalFlags(Options& po, CmdLineOptions& cl)
             if (univPos != std::string::npos)
                 po["wxcfg"].erase(univPos, univStr.length());
         }
-        else if (cl["--universal"] == "yes" || cl["--universal"].empty())
+        else if (cl.keyValue("--universal") == "yes" || cl.keyValue("--universal").empty())
         {
             // Pattern: Replace /(msw|base)/ to /(msw|base)univ/
 
@@ -2198,7 +2198,7 @@ void checkAdditionalFlags(Options& po, CmdLineOptions& cl)
 
     if (cl.keyExists("--unicode"))
     {
-        if (cl["--unicode"] == "no")
+        if (cl.keyValue("--unicode") == "no")
         {
             // Pattern: Remove /.*u/ if it's present
             // or /.*ud/ if --debug is specified
@@ -2209,7 +2209,7 @@ void checkAdditionalFlags(Options& po, CmdLineOptions& cl)
             else if (*(lastChar - 1) == 'u' && *lastChar == 'd')
                 po["wxcfg"].erase(lastChar - 1);
         }
-        else if (cl["--unicode"] == "yes" || cl["--unicode"].empty())
+        else if (cl.keyValue("--unicode") == "yes" || cl.keyValue("--unicode").empty())
         {
             // Pattern: Add /.*u/ if it's not already
             // or /.*ud/ if --debug is specified
@@ -2228,14 +2228,14 @@ void checkAdditionalFlags(Options& po, CmdLineOptions& cl)
 
     if (cl.keyExists("--debug"))
     {
-        if (cl["--debug"] == "no")
+        if (cl.keyValue("--debug") == "no")
         {
             // Pattern: Remove /.*d/ if it's present
             std::string::iterator lastChar = po["wxcfg"].end() - 1;
             if (*lastChar == 'd')
                 po["wxcfg"].erase(lastChar);
         }
-        else if (cl["--debug"] == "yes" || cl["--debug"].empty())
+        else if (cl.keyValue("--debug") == "yes" || cl.keyValue("--debug").empty())
         {
             // Pattern: Add /.*d/ if it's not already
             std::string::iterator lastChar = po["wxcfg"].end() - 1;
@@ -2246,7 +2246,7 @@ void checkAdditionalFlags(Options& po, CmdLineOptions& cl)
 
     if (cl.keyExists("--static"))
     {
-        if (cl["--static"] == "no")
+        if (cl.keyValue("--static") == "no")
         {
             // Pattern: Replace /.*_lib/ to /.*_dll/
 
@@ -2254,7 +2254,7 @@ void checkAdditionalFlags(Options& po, CmdLineOptions& cl)
             if (loc != std::string::npos)
                 po["wxcfg"].replace(loc, std::string("_dll").length(), "_dll");
         }
-        else if (cl["--static"] == "yes" || cl["--static"].empty())
+        else if (cl.keyValue("--static") == "yes" || cl.keyValue("--static").empty())
         {
             // Pattern: Replace /.*_dll/ to /.*_lib/
 
@@ -2266,15 +2266,15 @@ void checkAdditionalFlags(Options& po, CmdLineOptions& cl)
 
     if (cl.keyExists("--compiler"))
     {
-        if (cl["--compiler"] == "gcc")
+        if (cl.keyValue("--compiler") == "gcc")
             replaceCompilerIfFound(po["wxcfg"], "gcc");
-        else if (cl["--compiler"] == "dmc")
+        else if (cl.keyValue("--compiler") == "dmc")
             replaceCompilerIfFound(po["wxcfg"], "dmc");
-        else if (cl["--compiler"] == "vc")
+        else if (cl.keyValue("--compiler") == "vc")
             replaceCompilerIfFound(po["wxcfg"], "vc");
-        else if (cl["--compiler"] == "wat")
+        else if (cl.keyValue("--compiler") == "wat")
             replaceCompilerIfFound(po["wxcfg"], "wat");
-        else if (cl["--compiler"] == "bcc")
+        else if (cl.keyValue("--compiler") == "bcc")
             replaceCompilerIfFound(po["wxcfg"], "bcc");
     }
 }
@@ -2388,8 +2388,7 @@ bool validateConfiguration(const std::string& wxcfgfile, const std::string& wxcf
 
 // -------------------------------------------------------------------------------------------------
 
-//TODO: why const qualifier for cl doesn't works
-void outputFlags(Options& po, CmdLineOptions& cl)
+void outputFlags(Options& po, const CmdLineOptions& cl)
 {
     /// Outputs flags to console
     if (cl.keyExists("--variable"))
