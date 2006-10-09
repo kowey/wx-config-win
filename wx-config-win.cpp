@@ -52,11 +52,16 @@ public:
         return m_vars[key];
     }
 
-    bool keyExists(const std::string& key)
+    bool keyExists(const std::string& key) const
     {
         return m_vars.count(key) != 0;
     }
     
+    const std::string& keyValue(const std::string& key) const
+    {
+        return m_vars.find(key)->second;
+    }
+
     std::map<std::string,std::string>& getVars()
     {
         return m_vars;
@@ -125,14 +130,19 @@ protected:
 class SetupHOptions
 {
 public:
-    bool operator[](const std::string& key)
+    bool& operator[](const std::string& key)
     {
         return m_vars[key];
     }
 
-    bool keyExists(const std::string& key)
+    bool keyExists(const std::string& key) const
     {
         return m_vars.count(key) != 0;
+    }
+    
+    bool keyValue(const std::string& key) const
+    {
+        return m_vars.find(key)->second;
     }
     
     typedef std::map<std::string,bool> StringBoolMap;
@@ -273,13 +283,13 @@ public:
             std::cout << "  --cflags                    Outputs all pre-processor and compiler flags.\n";
             std::cout << "  --cxxflags                  Same as --cflags but for C++.\n";
             std::cout << "  --rcflags                   Outputs all resource compiler flags. [UNTESTED]\n";
-            std::cout << "  --libs                      Outputs all linker flags required for a wxWidgets application.\n";
+            std::cout << "  --libs                      Outputs all linker flags.\n";
             std::cout << std::endl;
             std::cout << "  --debug[=yes|no]            Uses a debug configuration if found.\n";
             std::cout << "  --unicode[=yes|no]          Uses an unicode configuration if found.\n";
             std::cout << "  --static[=yes|no]           Uses a static configuration if found.\n";
             std::cout << "  --universal[=yes|no]        Uses an universal configuration if found.\n";
-            std::cout << "  --easymode[=yes|no]         Outputs warnings, optimize and debug flags automatically.\n";
+            std::cout << "  --easymode[=yes|no]         Outputs warnings, and optimize flags.\n";
             std::cout << "  --compiler[=gcc,dmc,vc]     Selects the compiler.\n";
 //          std::cout << "  --variable=NAME             Returns the value of a defined variable.\n";
 //          std::cout << "  --define-variable=NAME=VAL  Sets a global value for a variable.\n";
@@ -530,11 +540,9 @@ public:
         SetupHOptions sho(po["wxcfgsetuphfile"]);
         
         // FIXME: proper place of this would be in a first hook, say process_1();
-        #if 0
-        const std::string tokDef = "--define-variable";
-        if (cl.keyExists(tokDef))
+        if (cl.keyExists("--define-variable"))
         {   
-            std::string strDef = cl["--define-variable"];
+            std::string strDef = cl.keyValue("--define-variable");
             size_t sep = strDef.find("=");
             if (sep != std::string::npos)
             {
@@ -544,20 +552,18 @@ public:
                 po[key] = val;
                 cfg[key] = val;
                 
-                // FIXME: lvalue expected??
-                /*if (val == "1" || val == "true")
+                if (val == "1" || val == "true")
                     sho[key] = true;
                 else if (val == "0" || val == "false")
-                    sho[key] = false;*/
+                    sho[key] = false;
             }
             else
             {
-                std::cout << "Failed to define a variable as '" << cl["--define-variable"] << "'." << std::endl;
+                std::cout << "Failed to define a variable as '" << cl.keyValue("--define-variable") << "'." << std::endl;
                 std::cout << "The syntax is --define-variable=VARIABLENAME=VARIABLEVALUE" << std::endl;
                 exit(1);
             }
-        }        
-        #endif
+        }
         
 
         /// Overriding flags sho->cfg!!
@@ -849,22 +855,20 @@ public:
 
     void getVariablesValues(Options& po, const CmdLineOptions& cl, BuildFileOptions& cfg)
     {
-        #if 0
         if (cl.keyExists("--variable"))
         {
-            po["variable"] = "\n";
+            std::string var = cl.keyValue("--variable");
             
-            if (po.keyExists(cl["--variable"]))
-                po["variable"] += "PO: " + cl["--variable"] + "=" + po[cl["--variable"]] + "\n";
+            if (po.keyExists(var))
+                po["variable"] += "PO: " + var + "=" + po[var] + "\n";
             else
-                po["variable"] += "PO: " + cl["--variable"] + " does not exist.\n";
+                po["variable"] += "PO: " + var + " does not exist.\n";
 
-            if (cfg.keyExists(cl["--variable"]))
-                cfg["variable"] += "CFG: " + cl["--variable"] + "=" + cfg[cl["--variable"]] + "\n";
+            if (cfg.keyExists(var))
+                po["variable"] += "CFG: " + var + "=" + cfg[var] + "\n";
             else
-                cfg["variable"] += "CFG: " + cl["--variable"] + " does not exist.\n";
+                po["variable"] += "CFG: " + var + " does not exist.\n";
         }
-        #endif
     }
 
 protected:
@@ -2386,8 +2390,13 @@ bool validateConfiguration(const std::string& wxcfgfile, const std::string& wxcf
 
 //TODO: why const qualifier for cl doesn't works
 void outputFlags(Options& po, CmdLineOptions& cl)
-{        
+{
     /// Outputs flags to console
+    if (cl.keyExists("--variable"))
+    {
+        std::cout << po["variable"];
+        exit(0);
+    }
     if (cl.keyExists("--cc"))
         std::cout << po["cc"];
     if (cl.keyExists("--cxx"))

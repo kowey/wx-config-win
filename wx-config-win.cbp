@@ -4,7 +4,7 @@
 	<Project>
 		<Option title="wx-config-win" />
 		<Option pch_mode="2" />
-		<Option default_target="" />
+		<Option default_target="wx-config-win GCC" />
 		<Option compiler="gcc" />
 		<Option virtualFolders="" />
 		<Build>
@@ -13,7 +13,7 @@
 				<Option object_output=".objs\gcc" />
 				<Option type="1" />
 				<Option compiler="gcc" />
-				<Option parameters="--help" />
+				<Option parameters="--cflags" />
 				<Compiler>
 					<Add option="-O2" />
 					<Add option="-pedantic" />
