@@ -41,6 +41,9 @@ std::string getSvnDate()
         return "2006-XX-XX";
 }
 
+static const std::string g_tokError = "wx-config Error: ";
+static const std::string g_tokWarning = "wx-config Warning: ";
+
 // -------------------------------------------------------------------------------------------------
 
 /// Program options
@@ -106,7 +109,7 @@ public:
                 return true;
         }
         else
-            std::cout << "   *** Error: Unable to open file '" << filepath.c_str() << "'." << std::endl;
+            std::cout << g_tokError << "Unable to open file '" << filepath.c_str() << "'." << std::endl;
 
         return false;
     }
@@ -180,7 +183,7 @@ public:
                 return true;
         }
         else
-            std::cout << "   *** Error: Unable to open file '" << filepath.c_str() << "'." << std::endl;
+            std::cout << g_tokError << "Unable to open file '" << filepath.c_str() << "'." << std::endl;
 
         return false;
     }
@@ -267,47 +270,44 @@ public:
                      keyExists("--ld") ||
                      keyExists("-v");
 
-
+        // TODO: not all flags are being validated
         if(!valid)
         {
-            // TODO: not all flags are being validated
-            if(m_vars.size() > 1 && !keyExists("--help"))
-                std::cout << "  *** Error: Unrecognised option: '" <<
-                m_vars.begin()->first << "'\n" << std::endl;
+            if (m_vars.size() > 1 && !keyExists("--help"))
+                std::cout << g_tokError << "Unrecognised option: '" << m_vars.begin()->first << "'\n" << std::endl;
 
-            std::cout << "Usage: wx-config [options]\n";
-            std::cout << "Options:\n";
-            std::cout << "  --prefix[=DIR]              Path of the wxWidgets installation (ie. C:\\wxWidgets2.6.3)\n";
-            std::cout << "  --wxcfg[=DIR]               Relative path of the build.cfg file (ie. gcc_dll\\mswud)\n";
-//          std::cout << "  --list                      Lists all the library configurations. [NOT IMPLEMENTED]\n";
-            std::cout << "  --cflags                    Outputs all pre-processor and compiler flags.\n";
-            std::cout << "  --cxxflags                  Same as --cflags but for C++.\n";
-            std::cout << "  --rcflags                   Outputs all resource compiler flags. [UNTESTED]\n";
-            std::cout << "  --libs                      Outputs all linker flags.\n";
-            std::cout << std::endl;
-            std::cout << "  --debug[=yes|no]            Uses a debug configuration if found.\n";
-            std::cout << "  --unicode[=yes|no]          Uses an unicode configuration if found.\n";
-            std::cout << "  --static[=yes|no]           Uses a static configuration if found.\n";
-            std::cout << "  --universal[=yes|no]        Uses an universal configuration if found.\n";
-            std::cout << "  --easymode[=yes|no]         Outputs warnings, and optimize flags.\n";
-            std::cout << "  --compiler[=gcc,dmc,vc]     Selects the compiler.\n";
-//          std::cout << "  --variable=NAME             Returns the value of a defined variable.\n";
-//          std::cout << "  --define-variable=NAME=VAL  Sets a global value for a variable.\n";
-            std::cout << "  --release                   Outputs the wxWidgets release number.\n";
-            std::cout << "  --cc                        Outputs the name of the C compiler.\n";
-            std::cout << "  --cxx                       Outputs the name of the C++ compiler.\n";
-            std::cout << "  --ld                        Outputs the linker command.\n";
-            std::cout << "  -v                          Outputs the revision of wx-config.\n";
+            std::cerr << "Usage: wx-config [options]\n";
+            std::cerr << "Options:\n";
+            std::cerr << "  --prefix[=DIR]              Path of the wxWidgets installation (ie. C:\\wxWidgets2.6.3)\n";
+            std::cerr << "  --wxcfg[=DIR]               Relative path of the build.cfg file (ie. gcc_dll\\mswud)\n";
+//          std::cerr << "  --list                      Lists all the library configurations. [NOT IMPLEMENTED]\n";
+            std::cerr << "  --cflags                    Outputs all pre-processor and compiler flags.\n";
+            std::cerr << "  --cxxflags                  Same as --cflags but for C++.\n";
+            std::cerr << "  --rcflags                   Outputs all resource compiler flags. [UNTESTED]\n";
+            std::cerr << "  --libs                      Outputs all linker flags.\n";
+            std::cerr << std::endl;
+            std::cerr << "  --debug[=yes|no]            Uses a debug configuration if found.\n";
+            std::cerr << "  --unicode[=yes|no]          Uses an unicode configuration if found.\n";
+            std::cerr << "  --static[=yes|no]           Uses a static configuration if found.\n";
+            std::cerr << "  --universal[=yes|no]        Uses an universal configuration if found.\n";
+            std::cerr << "  --easymode[=yes|no]         Outputs warnings, and optimize flags.\n";
+            std::cerr << "  --compiler[=gcc,dmc,vc]     Selects the compiler.\n";
+//          std::cerr << "  --variable=NAME             Returns the value of a defined variable.\n";
+//          std::cerr << "  --define-variable=NAME=VAL  Sets a global value for a variable.\n";
+            std::cerr << "  --release                   Outputs the wxWidgets release number.\n";
+            std::cerr << "  --cc                        Outputs the name of the C compiler.\n";
+            std::cerr << "  --cxx                       Outputs the name of the C++ compiler.\n";
+            std::cerr << "  --ld                        Outputs the linker command.\n";
+            std::cerr << "  -v                          Outputs the revision of wx-config.\n";
 
 
-            std::cout << std::endl;
-            std::cout << "  Note that using --prefix is not needed if you have defined the \n";
-            std::cout << "  environmental variable WXWIN.\n";
-            std::cout << std::endl;
-            std::cout << "  Also note that using --wxcfg is not needed if you have defined the \n";
-            std::cout << "  environmental variable WXCFG.\n";
-            std::cout << std::endl;
-
+            std::cerr << std::endl;
+            std::cerr << "  Note that using --prefix is not needed if you have defined the \n";
+            std::cerr << "  environmental variable WXWIN.\n";
+            std::cerr << std::endl;
+            std::cerr << "  Also note that using --wxcfg is not needed if you have defined the \n";
+            std::cerr << "  environmental variable WXCFG.\n";
+            std::cerr << std::endl;
         }
 
         return valid;
@@ -559,7 +559,7 @@ public:
             }
             else
             {
-                std::cout << "Failed to define a variable as '" << cl.keyValue("--define-variable") << "'." << std::endl;
+                std::cout << g_tokError << "Failed to define a variable as '" << cl.keyValue("--define-variable") << "'." << std::endl;
                 std::cout << "The syntax is --define-variable=VARIABLENAME=VARIABLEVALUE" << std::endl;
                 exit(1);
             }
@@ -2111,11 +2111,11 @@ void autodetectConfiguration(Options& po)
                 po["wxcfg"] = *it;
             else
             {
-                std::cout << "   *** Warning: multiple compiled configurations of wxWidgets have been detected." << std::endl;
-                std::cout << std::endl;
-                std::cout << "       Please use the --wxcfg flag (as in `wx-config --wxcfg=gcc_dll\\mswud`)" << std::endl;
-                std::cout << "       or set the environment variable WXCFG (as in WXCFG=gcc_dll\\mswud)" << std::endl;
-                std::cout << "       to specify which configuration exactly you want to use." << std::endl;
+                std::cout << g_tokWarning << "multiple compiled configurations of wxWidgets have been detected." << std::endl;
+                std::cerr << std::endl;
+                std::cerr << "Please use the --wxcfg flag (as in wx-config --wxcfg=gcc_dll\\mswud)" << std::endl;
+                std::cerr << "or set the environment variable WXCFG (as in WXCFG=gcc_dll\\mswud)" << std::endl;
+                std::cerr << "to specify which configuration exactly you want to use." << std::endl;
 
                 exit(1);
             }
@@ -2126,11 +2126,11 @@ void autodetectConfiguration(Options& po)
     {
         // TODO: this never reaches thanks to the new autodetection algorithm
 
-        std::cout << "   *** Error: No setup.h file has been auto-detected." << std::endl;
-        std::cout << std::endl;
-        std::cout << "       Please use the --wxcfg flag (as in `wx-config --wxcfg=gcc_dll\\mswud`)" << std::endl;
-        std::cout << "       or set the environment variable WXCFG (as in WXCFG=gcc_dll\\mswud)" << std::endl;
-        std::cout << "       to specify which configuration exactly you want to use." << std::endl;
+        std::cout << g_tokError << "No setup.h file has been auto-detected." << std::endl;
+        std::cerr << std::endl;
+        std::cerr << "Please use the --wxcfg flag (as in wx-config --wxcfg=gcc_dll\\mswud)" << std::endl;
+        std::cerr << "or set the environment variable WXCFG (as in WXCFG=gcc_dll\\mswud)" << std::endl;
+        std::cerr << "to specify which configuration exactly you want to use." << std::endl;
 
         exit(1);
     }
@@ -2322,10 +2322,10 @@ void detectCompiler(Options& po, const CmdLineOptions& cl)
     {
         // TODO: this never reaches thanks to the new autodetection algorithm
 
-        std::cout << "   *** Error: No supported compiler has been detected in the configuration '" << po["wxcfg"] << "'." << std::endl;
-        std::cout << std::endl;
-        std::cout << "       The specified wxcfg must start with a 'gcc_', 'dmc_' or 'vc_'" << std::endl;
-        std::cout << "       to be successfully detected." << std::endl;
+        std::cout << g_tokError << "No supported compiler has been detected in the configuration '" << po["wxcfg"] << "'." << std::endl;
+        std::cerr << std::endl;
+        std::cerr << "The specified wxcfg must start with a 'gcc_', 'dmc_' or 'vc_'" << std::endl;
+        std::cerr << "to be successfully detected." << std::endl;
 
         exit(1);
     }
@@ -2340,11 +2340,11 @@ void validatePrefix(const std::string& prefix)
     std::ifstream prefixIsValid(testfile.c_str());
     if (!prefixIsValid.is_open())
     {
-        std::cout << "   *** Error: wxWidgets hasn't been found installed at '" << prefix << "'." << std::endl;
-        std::cout << std::endl;
-        std::cout << "       Please use the --prefix flag (as in `wx-config --prefix=C:\\wxWidgets`)" << std::endl;
-        std::cout << "       or set the environment variable WXWIN (as in WXWIN=C:\\wxWidgets)" << std::endl;
-        std::cout << "       to specify where is your installation of wxWidgets." << std::endl;
+        std::cout << g_tokError << "wxWidgets hasn't been found installed at '" << prefix << "'." << std::endl;
+        std::cerr << std::endl;
+        std::cerr << "Please use the --prefix flag (as in wx-config --prefix=C:\\wxWidgets)" << std::endl;
+        std::cerr << "or set the environment variable WXWIN (as in WXWIN=C:\\wxWidgets)" << std::endl;
+        std::cerr << "to specify where is your installation of wxWidgets." << std::endl;
 
         exit(1);
     }
@@ -2364,22 +2364,20 @@ bool validateConfiguration(const std::string& wxcfgfile, const std::string& wxcf
     {
         if (!isSetupHOpen && exitIfError)
         {
-            std::cout << "   *** Error: No valid setup.h of wxWidgets has been found at location:" << std::endl;
-            std::cout << "       " << wxcfgsetuphfile << std::endl;
-            std::cout << std::endl;
-            std::cout << "       Please use the --wxcfg flag (as in `wx-config --wxcfg=gcc_dll\\mswud`)" << std::endl;
-            std::cout << "       or set the environment variable WXCFG (as in WXCFG=gcc_dll\\mswud)" << std::endl;
-            std::cout << "       to specify which configuration exactly you want to use." << std::endl;
+            std::cout << g_tokError << "No valid setup.h of wxWidgets has been found at location: " << wxcfgsetuphfile << std::endl;
+            std::cerr << std::endl;
+            std::cerr << "Please use the --wxcfg flag (as in wx-config --wxcfg=gcc_dll\\mswud)" << std::endl;
+            std::cerr << "or set the environment variable WXCFG (as in WXCFG=gcc_dll\\mswud)" << std::endl;
+            std::cerr << "to specify which configuration exactly you want to use." << std::endl;
 
             exit(1);
         }
 
-        std::cout << "   *** Error: No valid configuration of wxWidgets has been found at location:" << std::endl;
-        std::cout << "       " << wxcfgfile << std::endl;
-        std::cout << std::endl;
-        std::cout << "       Please use the --wxcfg flag (as in `wx-config --wxcfg=gcc_dll\\mswud`)" << std::endl;
-        std::cout << "       or set the environment variable WXCFG (as in WXCFG=gcc_dll\\mswud)" << std::endl;
-        std::cout << "       to specify which configuration exactly you want to use." << std::endl;
+        std::cout << g_tokError << "No valid configuration of wxWidgets has been found at location: " << wxcfgfile << std::endl;
+        std::cerr << std::endl;
+        std::cerr << "Please use the --wxcfg flag (as in wx-config --wxcfg=gcc_dll\\mswud)" << std::endl;
+        std::cerr << "or set the environment variable WXCFG (as in WXCFG=gcc_dll\\mswud)" << std::endl;
+        std::cerr << "to specify which configuration exactly you want to use." << std::endl;
 
         exit(1);
     }
