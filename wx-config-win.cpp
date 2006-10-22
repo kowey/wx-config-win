@@ -258,6 +258,7 @@ public:
                      keyExists("--libs") ||
                      keyExists("--cflags") ||
                      keyExists("--cxxflags") ||
+                     keyExists("--cppflags") ||
                      keyExists("--rcflags") ||
                      keyExists("--list") ||
                      keyExists("--debug") ||
@@ -757,7 +758,10 @@ public:
             
         if (cfg["MSLU"] == "1")
             po["__LIB_UNICOWS_p"] = addLib("unicows");
-
+            
+        if (cfg["USE_GDIPLUS"] == "1")
+            po["__GDIPLUS_LIB_p"] = addLib("gdiplus");
+        
         po["__LIB_KERNEL32_p"] = addLib("kernel32");
         
         po["__LIB_USER32_p"] = addLib("user32");
@@ -842,7 +846,7 @@ public:
         libs += po["__WXLIB_BASE_p"] + po["__WXLIB_MONO_p"];
         libs += po["__LIB_TIFF_p"] + po["__LIB_JPEG_p"] + po["__LIB_PNG_p"];
         libs += po["__LIB_ZLIB_p"] + po["__LIB_REGEX_p"] + po["__LIB_EXPAT_p"];
-        libs += po["EXTRALIBS_FOR_BASE"] + po["__UNICOWS_LIB_p"];
+        libs += po["EXTRALIBS_FOR_BASE"] + po["__UNICOWS_LIB_p"] + po["__GDIPLUS_LIB_p"];
         libs += po["__LIB_KERNEL32_p"] + po["__LIB_USER32_p"] + po["__LIB_GDI32_p"];
         libs += po["__LIB_COMDLG32_p"] + po["__LIB_REGEX_p"] + po["__LIB_WINSPOOL_p"];
         libs += po["__LIB_WINMM_p"] + po["__LIB_SHELL32_p"] + po["__LIB_COMCTL32_p"];
@@ -1026,6 +1030,12 @@ public:
         if (cfg["MSLU"] == "1")
             po["__MSLU_DEFINE_p_1"] = addResDefine("wxUSE_UNICODE_MSLU=1");
 
+        if (cfg["USE_GDIPLUS"] == "1")
+            po["__GFXCTX_DEFINE_p"] = addDefine("wxUSE_GRAPHICS_CONTEXT=1");
+
+        if (cfg["USE_GDIPLUS"] == "1")
+            po["__GFXCTX_DEFINE_p_1"] = addResDefine("wxUSE_GRAPHICS_CONTEXT=1");
+
         if (cfg["SHARED"] == "1")
             po["__DLLFLAG_p"] = addDefine("WXUSINGDLL");
 
@@ -1065,6 +1075,7 @@ public:
         po["cflags"] += po["GCCFLAGS"] + addDefine("HAVE_W32API_H") + addDefine("__WXMSW__") + po["__WXUNIV_DEFINE_p"];
         po["cflags"] += po["__DEBUG_DEFINE_p"] + po["__EXCEPTIONS_DEFINE_p"] + po["__RTTI_DEFINE_p"];
         po["cflags"] += po["__THREAD_DEFINE_p"] + po["__UNICODE_DEFINE_p"] + po["__MSLU_DEFINE_p"];
+        po["cflags"] += po["__GFXCTX_DEFINE_p"];
         po["cflags"] += addIncludeDir(po["SETUPHDIR"]) + addIncludeDir(po["prefix"] + "\\include");/*-W */
         po["cflags"] += easyMode(addFlag("-Wall")) + easyMode(addIncludeDir(".")) + po["__DLLFLAG_p"];
         po["cflags"] += easyMode(addIncludeDir(".\\..\\..\\samples")) + /*addDefine("NOPCH") +*/ po["__RTTIFLAG_5"] + po["__EXCEPTIONSFLAG_6"];
@@ -1093,7 +1104,7 @@ public:
         po["rcflags"]  = addFlag("--use-temp-file") + addResDefine("__WXMSW__") + po["__WXUNIV_DEFINE_p_1"];
         po["rcflags"] += po["__DEBUG_DEFINE_p_1"] + po["__EXCEPTIONS_DEFINE_p_1"];
         po["rcflags"] += po["__RTTI_DEFINE_p_1"] + po["__THREAD_DEFINE_p_1"] + po["__UNICODE_DEFINE_p_1"];
-        po["rcflags"] += po["__MSLU_DEFINE_p_1"] + addResIncludeDir(po["SETUPHDIR"]);
+        po["rcflags"] += po["__MSLU_DEFINE_p_1"] + po["__GFXCTX_DEFINE_p_1"] + addResIncludeDir(po["SETUPHDIR"]);
         po["rcflags"] += addResIncludeDir(po["prefix"] + "\\include") + easyMode(addResIncludeDir("."));
         po["rcflags"] += po["__DLLFLAG_p_1"];
         po["rcflags"] += easyMode(addResIncludeDir(po["prefix"] + "\\samples"));
@@ -1346,6 +1357,12 @@ public:
 /*
         if (cfg["MSLU"] == "1")
             po["__MSLU_DEFINE_p_1"] = addResDefine("wxUSE_UNICODE_MSLU=1");
+*/            
+        if (cfg["USE_GDIPLUS"] == "1")
+            po["__GFXCTX_DEFINE_p"] = addDefine("wxUSE_GRAPHICS_CONTEXT=1");
+/*
+        if (cfg["USE_GDIPLUS"] == "1")
+            po["__GFXCTX_DEFINE_p_1"] = addResDefine("wxUSE_GRAPHICS_CONTEXT=1");            
 */
         if (cfg["SHARED"] == "1")
             po["__DLLFLAG_p"] = addDefine("WXUSINGDLL");
@@ -1367,6 +1384,7 @@ public:
         po["cflags"] += addDefine("__WXMSW__") + po["__WXUNIV_DEFINE_p"];
         po["cflags"] += po["__DEBUG_DEFINE_p"] + po["__EXCEPTIONS_DEFINE_p"] + po["__RTTI_DEFINE_p"];
         po["cflags"] += po["__THREAD_DEFINE_p"] + po["__UNICODE_DEFINE_p"] + po["__MSLU_DEFINE_p"];
+        po["cflags"] += po["__GFXCTX_DEFINE_p"];
         po["cflags"] += addIncludeDir(po["SETUPHDIR"]) + addIncludeDir(po["prefix"] + "\\include") + easyMode(addFlag("-w-")) + easyMode(addIncludeDir(".")) + po["__DLLFLAG_p"] + easyMode(addFlag("-WA"));
         po["cflags"] += easyMode(addIncludeDir(po["prefix"] + "\\samples")) + easyMode(addDefine("NOPCH")) + po["__RTTIFLAG_9"] + po["__EXCEPTIONSFLAG_10"];
         po["cflags"] += cfg["CPPFLAGS"] + " " + cfg["CXXFLAGS"] + " ";
@@ -1385,7 +1403,7 @@ public:
         po["rcflags"]  = addResDefine("_WIN32_WINNT=0x0400") + addResDefine("__WXMSW__");
         po["rcflags"] += po["__WXUNIV_DEFINE_p"] + po["__DEBUG_DEFINE_p"] + po["__EXCEPTIONS_DEFINE_p"];
         po["rcflags"] += po["__RTTI_DEFINE_p"] + po["__THREAD_DEFINE_p"] + po["__UNICODE_DEFINE_p"];
-        po["rcflags"] += po["__MSLU_DEFINE_p"] + addResIncludeDir(po["SETUPHDIR"]);
+        po["rcflags"] += po["__MSLU_DEFINE_p"] + po["__GFXCTX_DEFINE_p"] + addResIncludeDir(po["SETUPHDIR"]);
         po["rcflags"] += addResIncludeDir(po["prefix"] + "\\include") + easyMode(addResIncludeDir("."));
         po["rcflags"] += po["__DLLFLAG_p"];
         po["rcflags"] += easyMode(addResIncludeDir(po["prefix"] + "\\samples"));
@@ -1657,6 +1675,12 @@ public:
         if (cfg["MSLU"] == "1")
             po["__MSLU_DEFINE_p_1"] = addResDefine("wxUSE_UNICODE_MSLU=1");
 
+        if (cfg["USE_GDIPLUS"] == "1")
+            po["__GFXCTX_DEFINE_p"] = addDefine("wxUSE_GRAPHICS_CONTEXT=1");
+
+        if (cfg["USE_GDIPLUS"] == "1")
+            po["__GFXCTX_DEFINE_p_1"] = addResDefine("wxUSE_GRAPHICS_CONTEXT=1");
+
         if (cfg["SHARED"] == "1")
             po["__DLLFLAG_p"] = addDefine("WXUSINGDLL");
 
@@ -1676,7 +1700,7 @@ public:
         po["cflags"] += easyMode(po["__DEBUGINFO_0"]) + easyMode(po["____DEBUGRUNTIME_2_p"]);
         po["cflags"] += easyMode(po["__OPTIMIZEFLAG_4"]) + po["__NO_VC_CRTDBG_p"] + addDefine("__WXMSW__") + po["__WXUNIV_DEFINE_p"];
         po["cflags"] += po["__DEBUG_DEFINE_p"] + po["__EXCEPTIONS_DEFINE_p"] + po["__RTTI_DEFINE_p"];
-        po["cflags"] += po["__THREAD_DEFINE_p"] + po["__UNICODE_DEFINE_p"] + po["__MSLU_DEFINE_p"];
+        po["cflags"] += po["__THREAD_DEFINE_p"] + po["__UNICODE_DEFINE_p"] + po["__MSLU_DEFINE_p"] + po["__GFXCTX_DEFINE_p"];
         po["cflags"] += addIncludeDir(po["SETUPHDIR"]) + addIncludeDir(po["prefix"] + "\\include") + easyMode(addFlag("/W4")) + easyMode(addIncludeDir(".")) + po["__DLLFLAG_p"] + addDefine("_WINDOWS");
         po["cflags"] += easyMode(addIncludeDir(po["prefix"] + "\\samples")) + easyMode(addDefine("NOPCH")) + po["__RTTIFLAG_9"] + po["__EXCEPTIONSFLAG_10"];
         po["cflags"] += cfg["CPPFLAGS"] + " " + cfg["CXXFLAGS"] + " ";
@@ -1691,7 +1715,7 @@ public:
         po["rcflags"]  = addResDefine("WIN32") + po["____DEBUGRUNTIME_2_p_1"] + po["__NO_VC_CRTDBG_p_1"] + addResDefine("__WXMSW__");
         po["rcflags"] += po["__WXUNIV_DEFINE_p_1"] + po["__DEBUG_DEFINE_p_1"] + po["__EXCEPTIONS_DEFINE_p_1"];
         po["rcflags"] += po["__RTTI_DEFINE_p_1"] + po["__THREAD_DEFINE_p_1"] + po["__UNICODE_DEFINE_p_1"];
-        po["rcflags"] += po["__MSLU_DEFINE_p_1"] + addResIncludeDir(po["SETUPHDIR"]);
+        po["rcflags"] += po["__MSLU_DEFINE_p_1"] + po["__GFXCTX_DEFINE_p_1"] + addResIncludeDir(po["SETUPHDIR"]);
         po["rcflags"] += addResIncludeDir(po["prefix"] + "\\include") + easyMode(addResIncludeDir("."));
         po["rcflags"] += po["__DLLFLAG_p_1"] + addResDefine("_WINDOWS");
         po["rcflags"] += easyMode(addResIncludeDir(po["prefix"] + "\\samples"));
@@ -1868,6 +1892,9 @@ public:
         if (cfg["MSLU"] == "1")
             po["__MSLU_DEFINE_p"] = addDefine("wxUSE_UNICODE_MSLU=1");
 
+        if (cfg["USE_GDIPLUS"] == "1")
+            po["__GFXCTX_DEFINE_p"] = addDefine("wxUSE_GRAPHICS_CONTEXT=1");
+
         if (cfg["SHARED"] == "1")
             po["__DLLFLAG_p"] = addDefine("WXUSINGDLL");
 
@@ -1881,7 +1908,7 @@ public:
         po["cflags"]  = easyMode(po["__DEBUGINFO_0"]) + easyMode(po["__OPTIMIZEFLAG_2"]) + po["__THREADSFLAG_5"];
         po["cflags"] += po["__RUNTIME_LIBS_6"] + addDefine("__WXMSW__") + po["__WXUNIV_DEFINE_p"];
         po["cflags"] += po["__DEBUG_DEFINE_p"] + po["__EXCEPTIONS_DEFINE_p"] + po["__RTTI_DEFINE_p"];
-        po["cflags"] += po["__THREAD_DEFINE_p"] + po["__UNICODE_DEFINE_p"] + po["__MSLU_DEFINE_p"];
+        po["cflags"] += po["__THREAD_DEFINE_p"] + po["__UNICODE_DEFINE_p"] + po["__MSLU_DEFINE_p"] + po["__GFXCTX_DEFINE_p"];
         po["cflags"] += addIncludeDir(po["SETUPHDIR"]) + addIncludeDir(po["prefix"] + "\\include");
         po["cflags"] += addFlag("-wx") + addFlag("-wcd=549") + addFlag("-wcd=656") + addFlag("-wcd=657") + addFlag("-wcd=667");
         po["cflags"] += easyMode(addIncludeDir(".")) + po["__DLLFLAG_p"];
@@ -1901,7 +1928,7 @@ public:
         po["rcflags"] += addResDefine("__WXMSW__") + po["__WXUNIV_DEFINE_p"];
         po["rcflags"] += po["__DEBUG_DEFINE_p"] + po["__EXCEPTIONS_DEFINE_p"];
         po["rcflags"] += po["__RTTI_DEFINE_p"] + po["__THREAD_DEFINE_p"] + po["__UNICODE_DEFINE_p"];
-        po["rcflags"] += po["__MSLU_DEFINE_p_1"] + addResIncludeDir(po["SETUPHDIR"]);
+        po["rcflags"] += po["__MSLU_DEFINE_p"] + po["__GFXCTX_DEFINE_p"] + addResIncludeDir(po["SETUPHDIR"]);
         po["rcflags"] += addResIncludeDir(po["prefix"] + "\\include") + easyMode(addResIncludeDir("."));
         po["rcflags"] += po["__DLLFLAG_p_1"];
         po["rcflags"] += easyMode(addResIncludeDir(po["prefix"] + "\\samples"));
