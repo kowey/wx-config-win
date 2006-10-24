@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <vector>
 
+#include <windows.h>
 
 // -------------------------------------------------------------------------------------------------
 
@@ -1995,156 +1996,283 @@ void normalizePath(std::string& path)
 
 // -------------------------------------------------------------------------------------------------
 
-void autodetectConfiguration(Options& po)
+/// Return true if string changed
+bool replaceCompilerIfFound(std::string& wxcfg, const std::string& compiler)
 {
-    // TODO: instead of this prebuild list that doesn't even take in account
-    // checkAdditionalFlags() and that doesn't admits multiple wx configurations
-    // a "dir list" needs to be done
+    size_t loc;
+    loc = wxcfg.find(compiler);
+    if (loc != std::string::npos)
+        return false;
 
+    std::vector<std::string> compilers;
+    compilers.push_back("gcc_");
+    compilers.push_back("dmc_");
+    compilers.push_back("vc_");
+    compilers.push_back("wat_");
+    compilers.push_back("bcc_");
 
+    for(std::vector<std::string>::const_iterator it = compilers.begin(); it != compilers.end(); ++it)
+    {
+        loc = wxcfg.find(*it);
+        if (loc != std::string::npos)
+        {
+            wxcfg.replace(loc, (*it).length(), compiler + "_");
+            return true;
+        }
+    }
+    return false;
+}
+
+// -------------------------------------------------------------------------------------------------
+
+/// Return true if string changed
+bool replaceUniv(std::string& wxcfg, bool enable)
+{
+    const std::string univStr("univ");
+    size_t univPos = wxcfg.rfind(univStr);
+    
+    if (enable)
+    {
+        /// Pattern: Replace /(msw|base)/ to /(msw|base)univ/
+        if (univPos == std::string::npos)
+        {
+            const std::string mswStr("msw");
+            size_t mswPos = wxcfg.rfind(mswStr);
+            if (mswPos != std::string::npos)
+                wxcfg.insert(mswPos + mswStr.length(), univStr);
+            else
+            {
+                const std::string baseStr("base");
+                size_t basePos = wxcfg.rfind(baseStr);
+                if (basePos != std::string::npos)
+                    wxcfg.insert(basePos + baseStr.length(), univStr);
+            }
+            return true;
+        }
+    }   
+    else
+    {
+        /// Pattern: Remove /univ/ in /(msw|base)univ/
+        if (univPos != std::string::npos)
+        {
+            wxcfg.erase(univPos, univStr.length());
+            return true;
+        }
+    }
+    return false;
+}
+
+// -------------------------------------------------------------------------------------------------
+
+/// Return true if string changed
+bool replaceUnicode(std::string& wxcfg, bool enable)
+{
+    std::string::iterator lastChar = wxcfg.end() - 1;
+
+    if (enable)
+    {
+        /// Pattern: Add /.*u/ if it's not already or /.*ud/ if --debug is specified
+        // TODO: string::find could be better
+        if (*lastChar != 'u' && *lastChar != 'd')
+        {
+            wxcfg += "u";
+            return true;
+        }
+        else if (*(lastChar - 1) != 'u' && *lastChar == 'd')
+        {
+            *lastChar = 'u';
+            wxcfg += "d";
+            return true;
+        }
+    }
+    else
+    {
+        /// Pattern: Remove /.*u/ if it's present or /.*ud/ if --debug is specified
+        if (*lastChar == 'u')
+        {
+            wxcfg.erase(lastChar);
+            return true;
+        }
+        else if (*(lastChar - 1) == 'u' && *lastChar == 'd')
+        {
+            wxcfg.erase(lastChar - 1);
+            return true;
+        }
+    }
+    return false;
+}
+
+// -------------------------------------------------------------------------------------------------
+
+/// Return true if string changed
+bool replaceDebug(std::string& wxcfg, bool enable)
+{
+    std::string::iterator lastChar = wxcfg.end() - 1;
+    
+    if (enable)
+    {
+        /// Pattern: Add /.*d/ if it's not already
+        if (*lastChar != 'd')
+        {
+            wxcfg += "d";
+            return true;
+        }
+    }
+    else
+    {
+        /// Pattern: Remove /.*d/ if it's present
+        if (*lastChar == 'd')
+        {
+            wxcfg.erase(lastChar);
+            return true;
+        }
+    }
+    return false;
+}
+
+// -------------------------------------------------------------------------------------------------
+
+/// Return true if string changed
+bool replaceStatic(std::string& wxcfg, bool enable)
+{
+    if (enable)
+    {
+        /// Pattern: Replace /.*_dll/ to /.*_lib/
+        size_t loc = wxcfg.find("_dll");
+        if (loc != std::string::npos)
+        {
+            wxcfg.replace(loc, std::string("_lib").length(), "_lib");
+            return true;
+        }
+    }
+    else
+    {
+        /// Pattern: Replace /.*_lib/ to /.*_dll/
+        size_t loc = wxcfg.find("_lib");
+        if (loc != std::string::npos)
+        {
+            wxcfg.replace(loc, std::string("_dll").length(), "_dll");
+            return true;
+        }
+    }
+    return false;
+}
+
+// -------------------------------------------------------------------------------------------------
+
+void autodetectConfiguration(Options& po, const CmdLineOptions& cl)
+{
+    // TODO: still directory listing is needed, to account for $(CFG), $(DIR_SUFFIX_CPU), ...
+    
     std::vector<std::string> cfgs;
-    /// Searchs for '<prefix>\lib\gcc_[dll|lib][CFG]\[msw|base][univ][u][d]\\wx\setup.h' next
-    // TODO: account for $(CFG), $(DIR_SUFFIX_CPU)
-    cfgs.push_back("gcc_dll\\msw");
-    cfgs.push_back("gcc_dll\\mswu");
-    cfgs.push_back("gcc_dll\\mswud");
-    cfgs.push_back("gcc_dll\\mswd");
-    cfgs.push_back("gcc_dll\\mswuniv");
-    cfgs.push_back("gcc_dll\\mswunivu");
-    cfgs.push_back("gcc_dll\\mswunivud");
-    cfgs.push_back("gcc_lib\\msw");
-    cfgs.push_back("gcc_lib\\mswu");
-    cfgs.push_back("gcc_lib\\mswud");
-    cfgs.push_back("gcc_lib\\mswd");
-    cfgs.push_back("gcc_lib\\mswuniv");
-    cfgs.push_back("gcc_lib\\mswunivu");
-    cfgs.push_back("gcc_lib\\mswunivud");
-    cfgs.push_back("gcc_dll\\base");
-    cfgs.push_back("gcc_dll\\baseu");
-    cfgs.push_back("gcc_dll\\baseud");
-    cfgs.push_back("gcc_dll\\based");
-    cfgs.push_back("gcc_dll\\baseuniv");
-    cfgs.push_back("gcc_dll\\baseunivu");
-    cfgs.push_back("gcc_dll\\baseunivud");
-    cfgs.push_back("gcc_lib\\base");
-    cfgs.push_back("gcc_lib\\baseu");
-    cfgs.push_back("gcc_lib\\baseud");
-    cfgs.push_back("gcc_lib\\based");
-    cfgs.push_back("gcc_lib\\baseuniv");
-    cfgs.push_back("gcc_lib\\baseunivu");
-    cfgs.push_back("gcc_lib\\baseunivud");
+    std::vector<std::string> newCfgs;
+    std::string              cfg;
+    std::vector<std::string>::iterator curCfg;
 
-    /// Searchs for '<prefix>\lib\dmc_lib\mswd\wx\setup.h' next
-    // TODO: account for $(CFG)
-    cfgs.push_back("dmc_dll\\msw");
-    cfgs.push_back("dmc_dll\\mswu");
-    cfgs.push_back("dmc_dll\\mswud");
-    cfgs.push_back("dmc_dll\\mswd");
-    cfgs.push_back("dmc_dll\\mswuniv");
-    cfgs.push_back("dmc_dll\\mswunivu");
-    cfgs.push_back("dmc_dll\\mswunivud");
-    cfgs.push_back("dmc_lib\\msw");
-    cfgs.push_back("dmc_lib\\mswu");
-    cfgs.push_back("dmc_lib\\mswud");
-    cfgs.push_back("dmc_lib\\mswd");
-    cfgs.push_back("dmc_lib\\mswuniv");
-    cfgs.push_back("dmc_lib\\mswunivu");
-    cfgs.push_back("dmc_lib\\mswunivud");
-    cfgs.push_back("dmc_dll\\base");
-    cfgs.push_back("dmc_dll\\baseu");
-    cfgs.push_back("dmc_dll\\baseud");
-    cfgs.push_back("dmc_dll\\based");
-    cfgs.push_back("dmc_dll\\baseuniv");
-    cfgs.push_back("dmc_dll\\baseunivu");
-    cfgs.push_back("dmc_dll\\baseunivud");
-    cfgs.push_back("dmc_lib\\base");
-    cfgs.push_back("dmc_lib\\baseu");
-    cfgs.push_back("dmc_lib\\baseud");
-    cfgs.push_back("dmc_lib\\based");
-    cfgs.push_back("dmc_lib\\baseuniv");
-    cfgs.push_back("dmc_lib\\baseunivu");
-    cfgs.push_back("dmc_lib\\baseunivud");
+    // Iterate through the options the user didn't supply
+	cfgs.push_back(po["wxcfg"]);
+    if (!cl.keyExists("--universal"))
+    {
+        cfg = po["wxcfg"];
+        if (replaceUniv(cfg, true))
+            cfgs.push_back(cfg);
+        cfg = po["wxcfg"];
+        if (replaceUniv(cfg, false))
+            cfgs.push_back(cfg);
+    }
+    if (!cl.keyExists("--unicode"))
+    {
+        newCfgs.clear();
+        for (curCfg = cfgs.begin(); curCfg != cfgs.end(); ++curCfg)
+        {
+            cfg = *curCfg;
+            if (replaceUnicode(cfg, true))
+                newCfgs.push_back(cfg);
+            cfg = *curCfg;
+            if (replaceUnicode(cfg, false))
+                newCfgs.push_back(cfg);
+        }
+        for (curCfg = newCfgs.begin(); curCfg != newCfgs.end(); ++curCfg)
+           cfgs.push_back(*curCfg);
+    }
+    if (!cl.keyExists("--debug"))
+    {
+        newCfgs.clear();
+        for (curCfg = cfgs.begin(); curCfg != cfgs.end(); ++curCfg)
+        {
+            cfg = *curCfg;
+            if (replaceDebug(cfg, true))
+                newCfgs.push_back(cfg);
+            cfg = *curCfg;
+            if (replaceDebug(cfg, false))
+                newCfgs.push_back(cfg);
+        }
+        for (curCfg = newCfgs.begin(); curCfg != newCfgs.end(); ++curCfg)
+           cfgs.push_back(*curCfg);
+    }
+    if (!cl.keyExists("--static"))
+    {
+        newCfgs.clear();
+        for (curCfg = cfgs.begin(); curCfg != cfgs.end(); ++curCfg)
+        {
+            cfg = *curCfg;
+            if (replaceStatic(cfg, true))
+                newCfgs.push_back(cfg);
+            cfg = *curCfg;
+            if (replaceStatic(cfg, false))
+                newCfgs.push_back(cfg);
+        }
+        for (curCfg = newCfgs.begin(); curCfg != newCfgs.end(); ++curCfg)
+           cfgs.push_back(*curCfg);
+    }
+    if (!cl.keyExists("--compiler"))
+    {
+       newCfgs.clear();
+       for (curCfg = cfgs.begin(); curCfg != cfgs.end(); ++curCfg)
+       {
+           cfg = *curCfg;
+           if (replaceCompilerIfFound(cfg, "gcc"))
+               newCfgs.push_back(cfg);
+           cfg = *curCfg;
+           if (replaceCompilerIfFound(cfg, "dmc"))
+               newCfgs.push_back(cfg);
+           cfg = *curCfg;
+           if (replaceCompilerIfFound(cfg, "vc"))
+               newCfgs.push_back(cfg);
+           cfg = *curCfg;
+           if (replaceCompilerIfFound(cfg, "wat"))
+               newCfgs.push_back(cfg);
+           cfg = *curCfg;
+           if (replaceCompilerIfFound(cfg, "bcc"))
+               newCfgs.push_back(cfg);
+       }
+       for (curCfg = newCfgs.begin(); curCfg != newCfgs.end(); ++curCfg)
+          cfgs.push_back(*curCfg);
+    }
 
-    /// Searchs for '<prefix>\lib\vc[cpu]_[dll|lib][CFG]\[msw|base][univ][u][d]\wx\setup.h' next
-    // TODO: account for $(CFG), $(DIR_SUFFIX_CPU)
-    cfgs.push_back("vc_dll\\msw");
-    cfgs.push_back("vc_dll\\mswu");
-    cfgs.push_back("vc_dll\\mswud");
-    cfgs.push_back("vc_dll\\mswd");
-    cfgs.push_back("vc_dll\\mswuniv");
-    cfgs.push_back("vc_dll\\mswunivu");
-    cfgs.push_back("vc_dll\\mswunivud");
-    cfgs.push_back("vc_lib\\msw");
-    cfgs.push_back("vc_lib\\mswu");
-    cfgs.push_back("vc_lib\\mswud");
-    cfgs.push_back("vc_lib\\mswd");
-    cfgs.push_back("vc_lib\\mswuniv");
-    cfgs.push_back("vc_lib\\mswunivu");
-    cfgs.push_back("vc_lib\\mswunivud");
-    cfgs.push_back("vc_dll\\base");
-    cfgs.push_back("vc_dll\\baseu");
-    cfgs.push_back("vc_dll\\baseud");
-    cfgs.push_back("vc_dll\\based");
-    cfgs.push_back("vc_dll\\baseuniv");
-    cfgs.push_back("vc_dll\\baseunivu");
-    cfgs.push_back("vc_dll\\baseunivud");
-    cfgs.push_back("vc_lib\\base");
-    cfgs.push_back("vc_lib\\baseu");
-    cfgs.push_back("vc_lib\\baseud");
-    cfgs.push_back("vc_lib\\based");
-    cfgs.push_back("vc_lib\\baseuniv");
-    cfgs.push_back("vc_lib\\baseunivu");
-    cfgs.push_back("vc_lib\\baseunivud");
-
-    /// Searchs for '<prefix>\lib\wat_[dll|lib][CFG]\[msw|base][univ][u][d]\wx\setup.h' next
-    // TODO: account for $(CFG)
-    cfgs.push_back("wat_dll\\msw");
-    cfgs.push_back("wat_dll\\mswu");
-    cfgs.push_back("wat_dll\\mswud");
-    cfgs.push_back("wat_dll\\mswd");
-    cfgs.push_back("wat_dll\\mswuniv");
-    cfgs.push_back("wat_dll\\mswunivu");
-    cfgs.push_back("wat_dll\\mswunivud");
-    cfgs.push_back("wat_lib\\msw");
-    cfgs.push_back("wat_lib\\mswu");
-    cfgs.push_back("wat_lib\\mswud");
-    cfgs.push_back("wat_lib\\mswd");
-    cfgs.push_back("wat_lib\\mswuniv");
-    cfgs.push_back("wat_lib\\mswunivu");
-    cfgs.push_back("wat_lib\\mswunivud");
-    cfgs.push_back("wat_dll\\base");
-    cfgs.push_back("wat_dll\\baseu");
-    cfgs.push_back("wat_dll\\baseud");
-    cfgs.push_back("wat_dll\\based");
-    cfgs.push_back("wat_dll\\baseuniv");
-    cfgs.push_back("wat_dll\\baseunivu");
-    cfgs.push_back("wat_dll\\baseunivud");
-    cfgs.push_back("wat_lib\\base");
-    cfgs.push_back("wat_lib\\baseu");
-    cfgs.push_back("wat_lib\\baseud");
-    cfgs.push_back("wat_lib\\based");
-    cfgs.push_back("wat_lib\\baseuniv");
-    cfgs.push_back("wat_lib\\baseunivu");
-    cfgs.push_back("wat_lib\\baseunivud");
 
     // reads the first setup.h it founds
+    bool found = false;
     for(std::vector<std::string>::const_iterator it = cfgs.begin(); it != cfgs.end(); ++it)
     {
         std::string file = po["prefix"] + "\\lib\\" + *it + "\\wx\\setup.h";
         std::ifstream setupH(file.c_str());
         if (setupH.is_open())
         {
-            if (!po.keyExists("wxcfg"))
+            if (!found)
+            {
                 po["wxcfg"] = *it;
+                found = true;
+            }
             else
             {
-                std::cout << g_tokWarning << "multiple compiled configurations of wxWidgets have been detected." << std::endl;
+                std::cerr << g_tokWarning << "Multiple compiled configurations of wxWidgets have been detected." << std::endl;
+                std::cerr << "Using first detected version by default." << std::endl;
                 std::cerr << std::endl;
                 std::cerr << "Please use the --wxcfg flag (as in wx-config --wxcfg=gcc_dll\\mswud)" << std::endl;
                 std::cerr << "or set the environment variable WXCFG (as in WXCFG=gcc_dll\\mswud)" << std::endl;
                 std::cerr << "to specify which configuration exactly you want to use." << std::endl;
-
-                exit(1);
+                return;
             }
         }
     }
@@ -2165,25 +2293,6 @@ void autodetectConfiguration(Options& po)
 
 // -------------------------------------------------------------------------------------------------
 
-void replaceCompilerIfFound(std::string& wxcfg, const std::string& compiler)
-{
-    std::vector<std::string> compilers;
-    compilers.push_back("gcc_");
-    compilers.push_back("dmc_");
-    compilers.push_back("vc_");
-    compilers.push_back("wat_");
-    compilers.push_back("bcc_");
-
-    for(std::vector<std::string>::const_iterator it = compilers.begin(); it != compilers.end(); ++it)
-    {
-        size_t loc = wxcfg.find(*it);
-        if (loc != std::string::npos)
-            wxcfg.replace(loc, (*it).length(), compiler + "_");
-    }
-}
-
-// -------------------------------------------------------------------------------------------------
-
 void checkAdditionalFlags(Options& po, const CmdLineOptions& cl)
 {
     /// Modifies wxcfg as 'vc[cpu]_[dll|lib][CFG]\[msw|base][univ][u][d]' accordingly
@@ -2192,104 +2301,34 @@ void checkAdditionalFlags(Options& po, const CmdLineOptions& cl)
     if (cl.keyExists("--universal"))
     {
         if (cl.keyValue("--universal") == "no")
-        {
-            // Pattern: Remove /univ/ in /(msw|base)univ/
-
-            const std::string univStr("univ");
-            size_t univPos = po["wxcfg"].rfind(univStr);
-            if (univPos != std::string::npos)
-                po["wxcfg"].erase(univPos, univStr.length());
-        }
+            replaceUniv(po["wxcfg"], false);
         else if (cl.keyValue("--universal") == "yes" || cl.keyValue("--universal").empty())
-        {
-            // Pattern: Replace /(msw|base)/ to /(msw|base)univ/
-
-            const std::string univStr("univ");
-            size_t univPos = po["wxcfg"].rfind(univStr);
-            if (univPos == std::string::npos)
-            {
-                const std::string mswStr("msw");
-                size_t mswPos = po["wxcfg"].rfind(mswStr);
-                if (mswPos != std::string::npos)
-                    po["wxcfg"].insert(mswPos + mswStr.length(), univStr);
-                else
-                {
-                    const std::string baseStr("base");
-                    size_t basePos = po["wxcfg"].rfind(baseStr);
-                    if (basePos != std::string::npos)
-                        po["wxcfg"].insert(basePos + baseStr.length(), univStr);
+            replaceUniv(po["wxcfg"], true);
                 }
-            }
-        }
-    }
 
     if (cl.keyExists("--unicode"))
     {
         if (cl.keyValue("--unicode") == "no")
-        {
-            // Pattern: Remove /.*u/ if it's present
-            // or /.*ud/ if --debug is specified
-
-            std::string::iterator lastChar = po["wxcfg"].end() - 1;
-            if (*lastChar == 'u')
-                po["wxcfg"].erase(lastChar);
-            else if (*(lastChar - 1) == 'u' && *lastChar == 'd')
-                po["wxcfg"].erase(lastChar - 1);
-        }
+            replaceUnicode(po["wxcfg"], false);
         else if (cl.keyValue("--unicode") == "yes" || cl.keyValue("--unicode").empty())
-        {
-            // Pattern: Add /.*u/ if it's not already
-            // or /.*ud/ if --debug is specified
-
-            // TODO: string::find will be better
-            std::string::iterator lastChar = po["wxcfg"].end() - 1;
-            if (*lastChar != 'u' && *lastChar != 'd')
-                po["wxcfg"] += "u";
-            else if (*(lastChar - 1) != 'u' && *lastChar == 'd')
-            {
-                *lastChar = 'u';
-                po["wxcfg"] += "d";
+            replaceUnicode(po["wxcfg"], true);
             }
-        }
-    }
 
     if (cl.keyExists("--debug"))
     {
         if (cl.keyValue("--debug") == "no")
-        {
-            // Pattern: Remove /.*d/ if it's present
-            std::string::iterator lastChar = po["wxcfg"].end() - 1;
-            if (*lastChar == 'd')
-                po["wxcfg"].erase(lastChar);
-        }
+            replaceDebug(po["wxcfg"], false);
         else if (cl.keyValue("--debug") == "yes" || cl.keyValue("--debug").empty())
-        {
-            // Pattern: Add /.*d/ if it's not already
-            std::string::iterator lastChar = po["wxcfg"].end() - 1;
-            if (*lastChar != 'd')
-                po["wxcfg"] += "d";
+            replaceDebug(po["wxcfg"], true);
         }
-    }
 
     if (cl.keyExists("--static"))
     {
         if (cl.keyValue("--static") == "no")
-        {
-            // Pattern: Replace /.*_lib/ to /.*_dll/
-
-            size_t loc = po["wxcfg"].find("_lib");
-            if (loc != std::string::npos)
-                po["wxcfg"].replace(loc, std::string("_dll").length(), "_dll");
-        }
+            replaceStatic(po["wxcfg"], false);
         else if (cl.keyValue("--static") == "yes" || cl.keyValue("--static").empty())
-        {
-            // Pattern: Replace /.*_dll/ to /.*_lib/
-
-            size_t loc = po["wxcfg"].find("_dll");
-            if (loc != std::string::npos)
-                po["wxcfg"].replace(loc, std::string("_lib").length(), "_lib");
+            replaceStatic(po["wxcfg"], true);
         }
-    }
 
     if (cl.keyExists("--compiler"))
     {
@@ -2475,7 +2514,40 @@ int main(int argc, char* argv[])
     else if (getenv("WXWIN"))
         po["prefix"] = getenv("WXWIN");
     else
+    {
+#ifdef _WIN32
+        /// Assume that, like a *nix, we're installed in C:\some\path\bin,
+        /// and that the root dir of wxWidgets is therefore C:\some\path.
+        DWORD length = MAX_PATH;
+        LPSTR libPath = NULL;
+        LPSTR filePart;
+
+        /// Why, oh why, doesn't M$ give us a way to find the actual return length,
+        /// like they do with everything else?!?
+        do
+        {
+            libPath = new CHAR[length];
+            GetModuleFileName(NULL, libPath, length);
+            GetFullPathName(libPath, length, libPath, &filePart);
+            *filePart = '\0';
+            // Add 3 for ".." and NULL
+            if (strlen(libPath) + 3 > length)
+            {
+                length *= 2;
+                delete[] libPath;
+                libPath = NULL;
+            }
+        } while (libPath == NULL);
+        strcpy(filePart, "..");
+        
+        // Fix the ..
+        GetFullPathName(libPath, length, libPath, NULL);
+        po["prefix"] = libPath;
+        delete[] libPath;
+#else
         po["prefix"] = "C:\\wxWidgets";
+#endif
+    }
 
     normalizePath(po["prefix"]);
 
@@ -2487,8 +2559,6 @@ int main(int argc, char* argv[])
         po["wxcfg"] = getenv("WXCFG");
     else
     {
-        // TODO: this behaviour could be better, directory listing is required
-
         // Try if something valid can be found trough deriving checkAdditionalFlags() first
         po["wxcfg"] = "gcc_dll\\msw";
         po["wxcfgfile"] = po["prefix"] + "\\lib\\" + po["wxcfg"] + "\\build.cfg";
@@ -2496,7 +2566,7 @@ int main(int argc, char* argv[])
         checkAdditionalFlags(po, cl);
 
         if (!validateConfiguration(po["wxcfgfile"], po["wxcfgsetuphfile"], false))
-            autodetectConfiguration(po);    // important function
+            autodetectConfiguration(po, cl);    // important function
     }
 
     normalizePath(po["wxcfg"]);
@@ -2510,3 +2580,4 @@ int main(int argc, char* argv[])
    
     return 0;
 }
+
