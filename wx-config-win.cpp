@@ -292,7 +292,7 @@ public:
             std::cerr << "  --unicode[=yes|no]          Uses an unicode configuration if found.\n";
             std::cerr << "  --static[=yes|no]           Uses a static configuration if found.\n";
             std::cerr << "  --universal[=yes|no]        Uses an universal configuration if found.\n";
-            std::cerr << "  --easymode[=yes|no]         Outputs warnings, and optimize flags.\n";
+//          std::cerr << "  --easymode[=yes|no]         Outputs warnings, and optimize flags.\n";
             std::cerr << "  --compiler[=gcc,dmc,vc]     Selects the compiler.\n";
 //          std::cerr << "  --variable=NAME             Returns the value of a defined variable.\n";
 //          std::cerr << "  --define-variable=NAME=VAL  Sets a global value for a variable.\n";

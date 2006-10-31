@@ -23,19 +23,22 @@ For other Windows IDEs and build systems there are workarounds, commonly using "
 Usage: wx-config [options]
 Options:
   --prefix[=DIR]              Path of the wxWidgets installation (ie. C:\wxWidgets2.6.3)
-  --wxcfg[=DIR]               Relative path of the build.cfg file (ie. gcc_dll\\mswud)
+  --wxcfg[=DIR]               Relative path of the build.cfg file (ie. gcc_dll\mswud)
   --cflags                    Outputs all pre-processor and compiler flags.
+  --cxxflags                  Same as --cflags but for C++.
   --rcflags                   Outputs all resource compiler flags. [UNTESTED]
-  --libs                      Outputs all linker flags required for a wxWidgets application.
-
-  --debug                     Uses a debug configuration if found.
-  --unicode                   Uses an unicode configuration if found.
-  --static                    Uses a static configuration if found.
-  --universal                 Uses an universal configuration if found.
+  --libs                      Outputs all linker flags.
+  
+  --debug[=yes|no]            Uses a debug configuration if found.
+  --unicode[=yes|no]          Uses an unicode configuration if found.
+  --static[=yes|no]           Uses a static configuration if found.
+  --universal[=yes|no]        Uses an universal configuration if found.
+  --compiler[=gcc,dmc,vc]     Selects the compiler.
   --release                   Outputs the wxWidgets release number.
   --cc                        Outputs the name of the C compiler.
   --cxx                       Outputs the name of the C++ compiler.
   --ld                        Outputs the linker command.
+  -v                          Outputs the revision of wx-config.
 
   Note that using --prefix is not needed if you have defined the
   environmental variable WXWIN.
@@ -46,7 +49,7 @@ Options:
 //--------------------------------------------------------------------------------------------
 
 The currently supported compilers are:
-* GNU MinGW [mingw]
+* GNU MinGW [gcc]
 * MS Visual C++ [vc]
 * Digital Mars [dmc]
 
