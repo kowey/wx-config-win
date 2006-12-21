@@ -267,6 +267,8 @@ public:
                      keyExists("--static") ||
                      keyExists("--universal") ||
                      keyExists("--release") ||
+                     keyExists("--version") ||
+                     keyExists("--basename") ||
                      keyExists("--cc") ||
                      keyExists("--cxx") ||
                      keyExists("--ld") ||
@@ -297,6 +299,8 @@ public:
 //          std::cerr << "  --variable=NAME             Returns the value of a defined variable.\n";
 //          std::cerr << "  --define-variable=NAME=VAL  Sets a global value for a variable.\n";
             std::cerr << "  --release                   Outputs the wxWidgets release number.\n";
+            std::cerr << "  --version                   Outputs the wxWidgets version.\n";
+            std::cerr << "  --basename                  Outputs the base name of the wxWidgets libraries.\n";
             std::cerr << "  --cc                        Outputs the name of the C compiler.\n";
             std::cerr << "  --cxx                       Outputs the name of the C++ compiler.\n";
             std::cerr << "  --ld                        Outputs the linker command.\n";
@@ -1112,6 +1116,8 @@ public:
 
         po["release"] = cfg["WXVER_MAJOR"] + "." + cfg["WXVER_MINOR"];
         po["version"] = cfg["WXVER_MAJOR"] + "." + cfg["WXVER_MINOR"] + "." + cfg["WXVER_RELEASE"];
+        po["basename"]  = "wx" + po["PORTNAME"] + po["WXUNIVNAME"] + po["WX_RELEASE_NODOT"];
+        po["basename"] += po["WXUNICODEFLAG"] + po["WXDEBUGFLAG"] + cfg["WX_LIB_FLAVOUR"];
         po["cc"] = m_programs.cc;
         po["cxx"] = m_programs.cxx;
         po["ld"] = m_programs.ld;
@@ -1413,6 +1419,8 @@ public:
 
         po["release"] = cfg["WXVER_MAJOR"] + "." + cfg["WXVER_MINOR"];
         po["version"] = cfg["WXVER_MAJOR"] + "." + cfg["WXVER_MINOR"] + "." + cfg["WXVER_RELEASE"];
+        po["basename"]  = "wx" + po["PORTNAME"] + po["WXUNIVNAME"] + po["WX_RELEASE_NODOT"];
+        po["basename"] += po["WXUNICODEFLAG"] + po["WXDEBUGFLAG"] + cfg["WX_LIB_FLAVOUR"];
         po["cc"] = m_programs.cc;
         po["cxx"] = m_programs.cxx;
         po["ld"] = m_programs.ld;
@@ -1724,6 +1732,8 @@ public:
 
         po["release"] = cfg["WXVER_MAJOR"] + "." + cfg["WXVER_MINOR"];
         po["version"] = cfg["WXVER_MAJOR"] + "." + cfg["WXVER_MINOR"] + "." + cfg["WXVER_RELEASE"];
+        po["basename"]  = "wx" + po["PORTNAME"] + po["WXUNIVNAME"] + po["WX_RELEASE_NODOT"];
+        po["basename"] += po["WXUNICODEFLAG"] + po["WXDEBUGFLAG"] + cfg["WX_LIB_FLAVOUR"];
         po["cc"] = m_programs.cc;
         po["cxx"] = m_programs.cxx;
         po["ld"] = m_programs.ld;
@@ -1936,6 +1946,8 @@ public:
 
         po["release"] = cfg["WXVER_MAJOR"] + "." + cfg["WXVER_MINOR"];
         po["version"] = cfg["WXVER_MAJOR"] + "." + cfg["WXVER_MINOR"] + "." + cfg["WXVER_RELEASE"];
+        po["basename"]  = "wx" + po["PORTNAME"] + po["WXUNIVNAME"] + po["WX_RELEASE_NODOT"];
+        po["basename"] += po["WXUNICODEFLAG"] + po["WXDEBUGFLAG"] + cfg["WX_LIB_FLAVOUR"];
         po["cc"] = m_programs.cc;
         po["cxx"] = m_programs.cxx;
         po["ld"] = m_programs.ld;
@@ -2473,17 +2485,30 @@ void outputFlags(Options& po, const CmdLineOptions& cl)
     if (cl.keyExists("--rcflags"))
         std::cout << po["rcflags"] << std::endl;
     if (cl.keyExists("--release"))
-        std::cout << po["release"] << std::endl;
-
-#if 0 // not implemented
+        std::cout << po["release"];
     if (cl.keyExists("--version"))
         std::cout << po["version"];
-    if (cl.keyExists("--list"))
-        std::cout << po["list"];
     if (cl.keyExists("--basename"))
         std::cout << po["basename"];
-#endif
 
+#if 0 // not implemented
+    if (cl.keyExists("--version=")) // incomplete
+        std::cout << po["version="];
+    if (cl.keyExists("--ld")) // incomplete
+        std::cout << po["ld"];
+    if (cl.keyExists("--rezflags"))
+        std::cout << po["rezflags"];
+    if (cl.keyExists("--linkdeps"))
+        std::cout << po["linkdeps"];
+    if (cl.keyExists("--version-full"))
+        std::cout << po["version-full"];
+    if (cl.keyExists("--exec-prefix="))
+        std::cout << po["exec-prefix="];
+    if (cl.keyExists("--toolkit"))
+        std::cout << po["toolkit"];
+    if (cl.keyExists("--list"))
+        std::cout << po["list"];
+#endif
 }
 
 // -------------------------------------------------------------------------------------------------
